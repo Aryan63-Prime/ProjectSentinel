@@ -17,18 +17,18 @@ data class DevicesResponse(
  */
 @JsonClass(generateAdapter = true)
 data class DeviceDto(
-    @Json(name = "deviceId") val deviceId: String,
-    @Json(name = "connectionId") val connectionId: String,
-    @Json(name = "authenticated") val authenticated: Boolean,
-    @Json(name = "registered") val registered: Boolean,
-    @Json(name = "registrationState") val registrationState: String,
-    @Json(name = "heartbeatStatus") val heartbeatStatus: String,
-    @Json(name = "connectedAt") val connectedAt: String,
-    @Json(name = "lastHeartbeat") val lastHeartbeat: String,
-    @Json(name = "deviceName") val deviceName: String,
-    @Json(name = "appVersion") val appVersion: String,
-    @Json(name = "model") val model: String,
-    @Json(name = "latestLocation") val latestLocation: DeviceLocationDto?
+    @Json(name = "deviceId") val deviceId: String = "",
+    @Json(name = "connectionId") val connectionId: String = "",
+    @Json(name = "authenticated") val authenticated: Boolean = false,
+    @Json(name = "registered") val registered: Boolean = false,
+    @Json(name = "registrationState") val registrationState: String = "",
+    @Json(name = "heartbeatStatus") val heartbeatStatus: String = "",
+    @Json(name = "connectedAt") val connectedAt: String = "",
+    @Json(name = "lastHeartbeat") val lastHeartbeat: String = "",
+    @Json(name = "deviceName") val deviceName: String = "",
+    @Json(name = "appVersion") val appVersion: String = "",
+    @Json(name = "model") val model: String = "",
+    @Json(name = "latestLocation") val latestLocation: DeviceLocationDto? = null
 )
 
 /**
