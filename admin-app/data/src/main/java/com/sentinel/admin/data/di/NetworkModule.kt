@@ -58,9 +58,14 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideRetrofit(client: OkHttpClient, moshi: Moshi): Retrofit {
+    fun provideRetrofit(
+        client: OkHttpClient,
+        moshi: Moshi,
+        sessionPreferences: SessionPreferences
+    ): Retrofit {
+        val baseUrl = deriveHttpBaseUrl(sessionPreferences.serverUrl)
         return Retrofit.Builder()
-            .baseUrl("http://localhost:8080/")
+            .baseUrl(baseUrl)
             .client(client)
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
@@ -70,6 +75,25 @@ object NetworkModule {
     @Singleton
     fun provideDeviceApi(retrofit: Retrofit): DeviceApi {
         return retrofit.create(DeviceApi::class.java)
+    }
+
+    /**
+     * Converts a WebSocket URL to an HTTP base URL.
+     * ws://host:port/ws  → http://host:port/
+     * wss://host:port/ws → https://host:port/
+     */
+    private fun deriveHttpBaseUrl(wsUrl: String?): String {
+        if (wsUrl.isNullOrBlank()) return "http://localhost:8080/"
+        return try {
+            val httpScheme = if (wsUrl.startsWith("wss://")) "https" else "http"
+            val withoutScheme = wsUrl
+                .removePrefix("wss://")
+                .removePrefix("ws://")
+            val hostPort = withoutScheme.split("/").first()
+            "$httpScheme://$hostPort/"
+        } catch (_: Exception) {
+            "http://localhost:8080/"
+        }
     }
 
     @Provides
