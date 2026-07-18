@@ -21,11 +21,6 @@ services:
           name: sentinel-redis
           type: redis
           property: port
-      - key: REDIS_PASSWORD
-        fromService:
-          name: sentinel-redis
-          type: redis
-          property: password
       - key: JWT_SECRET
         generateValue: true
     healthCheckPath: /health
