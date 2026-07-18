@@ -1,0 +1,122 @@
+package com.sentinel.admin.data.repository
+
+import com.sentinel.admin.data.remote.protocol.IncomingMessage
+import com.sentinel.admin.data.remote.protocol.MessageSerializer
+import com.sentinel.admin.data.remote.websocket.WebSocketDataSource
+import com.sentinel.admin.data.remote.websocket.WebSocketState
+import com.sentinel.admin.domain.model.ConnectionEvent
+import com.sentinel.admin.domain.model.ConnectionState
+import com.sentinel.admin.domain.repository.ConnectionRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+
+/**
+ * Bridges transport-level WebSocket to domain.
+ *
+ * Responsibilities:
+ * - Maps WebSocketState → domain ConnectionState (transport-level only)
+ * - Deserializes incoming text messages → emits ConnectionEvents
+ * - Forwards binary messages as AudioFrameReceived events
+ * - Emits WebSocket state changes as ConnectionEvents
+ *
+ * This class does NOT manage business-level state transitions
+ * (Authenticating, Ready). That's the AdminSupervisor's job.
+ */
+class ConnectionRepositoryImpl(
+    private val webSocketDataSource: WebSocketDataSource,
+    private val messageSerializer: MessageSerializer,
+    scope: CoroutineScope
+) : ConnectionRepository {
+
+    private val _state = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
+    override val state: StateFlow<ConnectionState> = _state.asStateFlow()
+
+    private val _events = MutableSharedFlow<ConnectionEvent>(extraBufferCapacity = 64)
+    override val events: SharedFlow<ConnectionEvent> = _events.asSharedFlow()
+
+    init {
+        // Observe WebSocket state → emit transport events + update state
+        webSocketDataSource.state
+            .onEach { wsState ->
+                _state.value = wsState.toDomainState()
+                wsState.toEvent()?.let { _events.emit(it) }
+            }
+            .launchIn(scope)
+
+        // Observe incoming text → deserialize → emit domain events
+        webSocketDataSource.textMessages
+            .onEach { json ->
+                val message = messageSerializer.deserialize(json)
+                message.toEvent(json)?.let { _events.emit(it) }
+            }
+            .launchIn(scope)
+
+        // Observe incoming binary → emit as AudioFrameReceived
+        webSocketDataSource.binaryMessages
+            .onEach { data ->
+                _events.emit(ConnectionEvent.AudioFrameReceived(data))
+            }
+            .launchIn(scope)
+    }
+
+    override suspend fun connect(serverUrl: String) {
+        webSocketDataSource.connect(serverUrl)
+    }
+
+    override suspend fun disconnect() {
+        webSocketDataSource.disconnect()
+    }
+
+    override fun sendText(message: String): Boolean {
+        return webSocketDataSource.sendText(message)
+    }
+
+    override fun sendBinary(data: ByteArray): Boolean {
+        return webSocketDataSource.sendBinary(data)
+    }
+}
+
+/**
+ * Maps transport WebSocketState → domain ConnectionState.
+ * Only transport-level states are mapped here.
+ */
+internal fun WebSocketState.toDomainState(): ConnectionState = when (this) {
+    is WebSocketState.Disconnected -> ConnectionState.Disconnected
+    is WebSocketState.Connecting -> ConnectionState.Connecting
+    is WebSocketState.Connected -> ConnectionState.TransportConnected
+    is WebSocketState.Disconnecting -> ConnectionState.Disconnected
+    is WebSocketState.Failed -> ConnectionState.Error(reason)
+}
+
+/**
+ * Maps WebSocket state changes → ConnectionEvents.
+ */
+internal fun WebSocketState.toEvent(): ConnectionEvent? = when (this) {
+    is WebSocketState.Connected -> ConnectionEvent.Connected
+    is WebSocketState.Disconnected -> ConnectionEvent.Disconnected
+    is WebSocketState.Failed -> ConnectionEvent.ServerError(code ?: 0, reason)
+    else -> null
+}
+
+/**
+ * Maps deserialized incoming messages → ConnectionEvents.
+ * Admin-specific: no RegisterAck mapping.
+ *
+ * @param rawJson The original JSON string, passed through for DeviceUpdate events
+ *                so the repository can deserialize the full payload.
+ */
+internal fun IncomingMessage.toEvent(rawJson: String = ""): ConnectionEvent? = when (this) {
+    is IncomingMessage.AuthAck -> ConnectionEvent.AuthResult(success)
+    is IncomingMessage.HeartbeatAck -> ConnectionEvent.HeartbeatAck
+    is IncomingMessage.Error -> ConnectionEvent.ServerError(code, message)
+    is IncomingMessage.DeviceUpdate -> ConnectionEvent.DeviceUpdateReceived(rawJson)
+    is IncomingMessage.Pong -> null
+    is IncomingMessage.Unknown -> null
+}

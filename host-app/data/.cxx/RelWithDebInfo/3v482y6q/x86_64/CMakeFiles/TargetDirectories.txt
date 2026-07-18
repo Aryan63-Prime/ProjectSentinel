@@ -1,0 +1,14 @@
+C:/Development/ProjectSentinel/host-app/data/.cxx/RelWithDebInfo/3v482y6q/x86_64/CMakeFiles/opus_jni.dir
+C:/Development/ProjectSentinel/host-app/data/.cxx/RelWithDebInfo/3v482y6q/x86_64/CMakeFiles/edit_cache.dir
+C:/Development/ProjectSentinel/host-app/data/.cxx/RelWithDebInfo/3v482y6q/x86_64/CMakeFiles/rebuild_cache.dir
+C:/Development/ProjectSentinel/host-app/data/.cxx/RelWithDebInfo/3v482y6q/x86_64/CMakeFiles/list_install_components.dir
+C:/Development/ProjectSentinel/host-app/data/.cxx/RelWithDebInfo/3v482y6q/x86_64/CMakeFiles/install.dir
+C:/Development/ProjectSentinel/host-app/data/.cxx/RelWithDebInfo/3v482y6q/x86_64/CMakeFiles/install/local.dir
+C:/Development/ProjectSentinel/host-app/data/.cxx/RelWithDebInfo/3v482y6q/x86_64/CMakeFiles/install/strip.dir
+C:/Development/ProjectSentinel/host-app/data/.cxx/RelWithDebInfo/3v482y6q/x86_64/third_party/opus-1.5.2/CMakeFiles/opus.dir
+C:/Development/ProjectSentinel/host-app/data/.cxx/RelWithDebInfo/3v482y6q/x86_64/third_party/opus-1.5.2/CMakeFiles/edit_cache.dir
+C:/Development/ProjectSentinel/host-app/data/.cxx/RelWithDebInfo/3v482y6q/x86_64/third_party/opus-1.5.2/CMakeFiles/rebuild_cache.dir
+C:/Development/ProjectSentinel/host-app/data/.cxx/RelWithDebInfo/3v482y6q/x86_64/third_party/opus-1.5.2/CMakeFiles/list_install_components.dir
+C:/Development/ProjectSentinel/host-app/data/.cxx/RelWithDebInfo/3v482y6q/x86_64/third_party/opus-1.5.2/CMakeFiles/install.dir
+C:/Development/ProjectSentinel/host-app/data/.cxx/RelWithDebInfo/3v482y6q/x86_64/third_party/opus-1.5.2/CMakeFiles/install/local.dir
+C:/Development/ProjectSentinel/host-app/data/.cxx/RelWithDebInfo/3v482y6q/x86_64/third_party/opus-1.5.2/CMakeFiles/install/strip.dir

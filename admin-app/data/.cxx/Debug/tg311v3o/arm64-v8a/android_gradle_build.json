@@ -1,0 +1,54 @@
+{
+  "buildFiles": [
+    "C:\\Development\\ProjectSentinel\\admin-app\\data\\src\\main\\cpp\\CMakeLists.txt",
+    "C:\\Development\\ProjectSentinel\\admin-app\\data\\src\\main\\cpp\\third_party\\opus-1.5.2\\cmake\\CFeatureCheck.cmake",
+    "C:\\Development\\ProjectSentinel\\admin-app\\data\\src\\main\\cpp\\third_party\\opus-1.5.2\\cmake\\config.h.cmake.in",
+    "C:\\Development\\ProjectSentinel\\admin-app\\data\\src\\main\\cpp\\third_party\\opus-1.5.2\\cmake\\OpusBuildtype.cmake",
+    "C:\\Development\\ProjectSentinel\\admin-app\\data\\src\\main\\cpp\\third_party\\opus-1.5.2\\cmake\\OpusConfig.cmake",
+    "C:\\Development\\ProjectSentinel\\admin-app\\data\\src\\main\\cpp\\third_party\\opus-1.5.2\\cmake\\OpusFunctions.cmake",
+    "C:\\Development\\ProjectSentinel\\admin-app\\data\\src\\main\\cpp\\third_party\\opus-1.5.2\\cmake\\OpusPackageVersion.cmake",
+    "C:\\Development\\ProjectSentinel\\admin-app\\data\\src\\main\\cpp\\third_party\\opus-1.5.2\\cmake\\OpusSources.cmake",
+    "C:\\Development\\ProjectSentinel\\admin-app\\data\\src\\main\\cpp\\third_party\\opus-1.5.2\\CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "C:\\Users\\patel\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+      "-C",
+      "C:\\Development\\ProjectSentinel\\admin-app\\data\\.cxx\\Debug\\tg311v3o\\arm64-v8a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "C:\\Users\\patel\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+    "-C",
+    "C:\\Development\\ProjectSentinel\\admin-app\\data\\.cxx\\Debug\\tg311v3o\\arm64-v8a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "opus::@75e1023ec48a334cf3de": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "opus",
+      "output": "C:\\Development\\ProjectSentinel\\admin-app\\data\\.cxx\\Debug\\tg311v3o\\arm64-v8a\\third_party\\opus-1.5.2\\libopus.a"
+    },
+    "opus_decoder_jni::@6890427a1f51a3e7e1df": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "opus_decoder_jni",
+      "output": "C:\\Development\\ProjectSentinel\\admin-app\\data\\build\\intermediates\\cxx\\Debug\\tg311v3o\\obj\\arm64-v8a\\libopus_decoder_jni.so",
+      "runtimeFiles": []
+    }
+  },
+  "toolchains": {
+    "toolchain": {
+      "cCompilerExecutable": "C:\\Users\\patel\\AppData\\Local\\Android\\Sdk\\ndk\\27.0.12077973\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\clang.exe",
+      "cppCompilerExecutable": "C:\\Users\\patel\\AppData\\Local\\Android\\Sdk\\ndk\\27.0.12077973\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\clang++.exe"
+    }
+  },
+  "cFileExtensions": [
+    "c"
+  ],
+  "cppFileExtensions": [
+    "cpp"
+  ]
+}

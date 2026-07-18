@@ -1,0 +1,9 @@
+C:\Development\ProjectSentinel\admin-app\data\src\main\cpp\CMakeLists.txt
+C:\Development\ProjectSentinel\admin-app\data\src\main\cpp\third_party\opus-1.5.2\cmake\CFeatureCheck.cmake
+C:\Development\ProjectSentinel\admin-app\data\src\main\cpp\third_party\opus-1.5.2\cmake\config.h.cmake.in
+C:\Development\ProjectSentinel\admin-app\data\src\main\cpp\third_party\opus-1.5.2\cmake\OpusBuildtype.cmake
+C:\Development\ProjectSentinel\admin-app\data\src\main\cpp\third_party\opus-1.5.2\cmake\OpusConfig.cmake
+C:\Development\ProjectSentinel\admin-app\data\src\main\cpp\third_party\opus-1.5.2\cmake\OpusFunctions.cmake
+C:\Development\ProjectSentinel\admin-app\data\src\main\cpp\third_party\opus-1.5.2\cmake\OpusPackageVersion.cmake
+C:\Development\ProjectSentinel\admin-app\data\src\main\cpp\third_party\opus-1.5.2\cmake\OpusSources.cmake
+C:\Development\ProjectSentinel\admin-app\data\src\main\cpp\third_party\opus-1.5.2\CMakeLists.txt

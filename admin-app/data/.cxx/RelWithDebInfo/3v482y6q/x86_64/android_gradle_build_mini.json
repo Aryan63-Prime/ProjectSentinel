@@ -1,0 +1,41 @@
+{
+  "buildFiles": [
+    "C:\\Development\\ProjectSentinel\\admin-app\\data\\src\\main\\cpp\\CMakeLists.txt",
+    "C:\\Development\\ProjectSentinel\\admin-app\\data\\src\\main\\cpp\\third_party\\opus-1.5.2\\cmake\\CFeatureCheck.cmake",
+    "C:\\Development\\ProjectSentinel\\admin-app\\data\\src\\main\\cpp\\third_party\\opus-1.5.2\\cmake\\config.h.cmake.in",
+    "C:\\Development\\ProjectSentinel\\admin-app\\data\\src\\main\\cpp\\third_party\\opus-1.5.2\\cmake\\OpusBuildtype.cmake",
+    "C:\\Development\\ProjectSentinel\\admin-app\\data\\src\\main\\cpp\\third_party\\opus-1.5.2\\cmake\\OpusConfig.cmake",
+    "C:\\Development\\ProjectSentinel\\admin-app\\data\\src\\main\\cpp\\third_party\\opus-1.5.2\\cmake\\OpusFunctions.cmake",
+    "C:\\Development\\ProjectSentinel\\admin-app\\data\\src\\main\\cpp\\third_party\\opus-1.5.2\\cmake\\OpusPackageVersion.cmake",
+    "C:\\Development\\ProjectSentinel\\admin-app\\data\\src\\main\\cpp\\third_party\\opus-1.5.2\\cmake\\OpusSources.cmake",
+    "C:\\Development\\ProjectSentinel\\admin-app\\data\\src\\main\\cpp\\third_party\\opus-1.5.2\\CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "C:\\Users\\patel\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+      "-C",
+      "C:\\Development\\ProjectSentinel\\admin-app\\data\\.cxx\\RelWithDebInfo\\3v482y6q\\x86_64",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "C:\\Users\\patel\\AppData\\Local\\Android\\Sdk\\cmake\\3.22.1\\bin\\ninja.exe",
+    "-C",
+    "C:\\Development\\ProjectSentinel\\admin-app\\data\\.cxx\\RelWithDebInfo\\3v482y6q\\x86_64",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "opus::@75e1023ec48a334cf3de": {
+      "artifactName": "opus",
+      "abi": "x86_64",
+      "output": "C:\\Development\\ProjectSentinel\\admin-app\\data\\.cxx\\RelWithDebInfo\\3v482y6q\\x86_64\\third_party\\opus-1.5.2\\libopus.a",
+      "runtimeFiles": []
+    },
+    "opus_decoder_jni::@6890427a1f51a3e7e1df": {
+      "artifactName": "opus_decoder_jni",
+      "abi": "x86_64",
+      "output": "C:\\Development\\ProjectSentinel\\admin-app\\data\\build\\intermediates\\cxx\\RelWithDebInfo\\3v482y6q\\obj\\x86_64\\libopus_decoder_jni.so",
+      "runtimeFiles": []
+    }
+  }
+}

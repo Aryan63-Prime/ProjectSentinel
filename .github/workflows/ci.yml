@@ -1,0 +1,77 @@
+name: Project Sentinel CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - "feature/**"
+      - "bugfix/**"
+
+  pull_request:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+
+    name: Go Backend
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache: true
+
+      - name: Display Go Version
+        run: go version
+
+      - name: Download Dependencies
+        run: go mod download
+
+      - name: Verify Modules
+        run: go mod tidy
+
+      - name: Check Formatting
+        run: |
+          FILES=$(gofmt -l .)
+          if [ -n "$FILES" ]; then
+            echo "The following files are not formatted:"
+            echo "$FILES"
+            exit 1
+          fi
+
+      - name: Go Vet
+        run: go vet ./...
+
+      - name: Run Unit Tests
+        run: |
+          go test \
+            -v \
+            -race \
+            -cover \
+            -coverprofile=coverage.out \
+            ./...
+
+      - name: Build Server
+        run: go build ./...
+
+      - name: Upload Coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-coverage
+          path: server/coverage.out

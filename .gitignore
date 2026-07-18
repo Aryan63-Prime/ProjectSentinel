@@ -1,0 +1,46 @@
+# ============================================================
+# Project Sentinel — Root .gitignore
+# ============================================================
+
+# === IDE ===
+.idea/
+*.iml
+.vscode/
+.agents/
+
+# === Android ===
+*.apk
+*.aab
+*.dex
+*.class
+*.log
+*.tmp
+*.bak
+local.properties
+*.hprof
+
+# Android build
+**/build/
+**/.gradle/
+**/.kotlin/
+
+# === Go ===
+server/.env
+!server/.env.example
+server/sentinel
+server/*.pem
+server/*.key
+server/*.crt
+
+# === OS ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === Dependencies ===
+node_modules/
+
+# === Secrets ===
+*.keystore
+*.jks
+*.p12

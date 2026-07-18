@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: project-sentinel
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: APP_NAME
+        value: ProjectSentinel
+      - key: APP_ENV
+        value: production
+      - key: SERVER_HOST
+        value: 0.0.0.0
+      - key: REDIS_HOST
+        fromService:
+          name: sentinel-redis
+          type: redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          name: sentinel-redis
+          type: redis
+          property: port
+      - key: REDIS_PASSWORD
+        fromService:
+          name: sentinel-redis
+          type: redis
+          property: password
+      - key: JWT_SECRET
+        generateValue: true
+    healthCheckPath: /health
+
+  - type: redis
+    name: sentinel-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []

@@ -1,0 +1,59 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"third_party/opus-1.5.2/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 602,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "lib",
+			"paths" : 
+			[
+				"third_party/opus-1.5.2/libopus.a"
+			],
+			"targetId" : "opus::@75e1023ec48a334cf3de",
+			"targetIndex" : 0,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "include/opus",
+			"paths" : 
+			[
+				"third_party/opus-1.5.2/include/opus.h",
+				"third_party/opus-1.5.2/include/opus_defines.h",
+				"third_party/opus-1.5.2/include/opus_multistream.h",
+				"third_party/opus-1.5.2/include/opus_projection.h",
+				"third_party/opus-1.5.2/include/opus_types.h"
+			],
+			"type" : "file"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "third_party/opus-1.5.2",
+		"source" : "third_party/opus-1.5.2"
+	}
+}

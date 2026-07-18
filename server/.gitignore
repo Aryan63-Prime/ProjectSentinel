@@ -1,0 +1,11 @@
+# Environment files (contain secrets)
+.env
+!.env.example
+
+# Certificates and keys
+*.pem
+*.key
+*.crt
+
+# Binary
+/sentinel
