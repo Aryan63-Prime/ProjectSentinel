@@ -3,6 +3,7 @@ services:
     name: project-sentinel
     runtime: docker
     plan: free
+    rootDir: server
     dockerfilePath: ./Dockerfile
     envVars:
       - key: APP_NAME
