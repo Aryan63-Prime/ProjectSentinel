@@ -19,6 +19,7 @@ class DeviceRepositoryImpl(
     private val connectionRepository: ConnectionRepository,
     private val messageSerializer: MessageSerializer,
     private val sequenceGenerator: SequenceGenerator,
+    private val sessionManager: com.sentinel.host.domain.session.SessionManager,
     private val appVersion: String
 ) : DeviceRepository {
 
@@ -60,15 +61,44 @@ class DeviceRepositoryImpl(
     override fun getDeviceInfo(): DeviceInfo {
         val manufacturer = Build.MANUFACTURER ?: "Unknown"
         val model = Build.MODEL ?: "Unknown"
-        val serial = Build.SERIAL
+
+        // Use the device_id from the JWT token if available.
+        // This ensures the REGISTER deviceId matches the AUTH deviceId,
+        // preventing 403 Forbidden from the server's mismatch check.
+        val jwtDeviceId = extractDeviceIdFromToken()
+
+        val deviceId = jwtDeviceId
+            ?: Build.SERIAL?.takeIf { it != Build.UNKNOWN }
+            ?: "$manufacturer-$model".replace(" ", "-")
 
         return DeviceInfo(
-            deviceId = serial?.takeIf { it != Build.UNKNOWN }
-                ?: "$manufacturer-$model".replace(" ", "-"),
+            deviceId = deviceId,
             deviceName = "$manufacturer $model",
             model = model,
             appVersion = appVersion
         )
+    }
+
+    /**
+     * Extracts the device_id claim from the saved JWT token.
+     * JWT is base64-encoded: header.payload.signature
+     * We decode the payload to get the device_id claim.
+     */
+    private fun extractDeviceIdFromToken(): String? {
+        return try {
+            val token = sessionManager.getToken() ?: return null
+            val parts = token.split(".")
+            if (parts.size != 3) return null
+            val payload = String(
+                android.util.Base64.decode(parts[1], android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING),
+                Charsets.UTF_8
+            )
+            // Simple JSON parse for device_id
+            val regex = """"device_id"\s*:\s*"([^"]+)"""".toRegex()
+            regex.find(payload)?.groupValues?.get(1)
+        } catch (_: Exception) {
+            null
+        }
     }
 }
 

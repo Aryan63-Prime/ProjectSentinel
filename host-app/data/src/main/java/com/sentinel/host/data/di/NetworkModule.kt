@@ -118,10 +118,12 @@ object NetworkModule {
     fun provideDeviceRepository(
         connectionRepository: ConnectionRepository,
         messageSerializer: MessageSerializer,
-        sequenceGenerator: SequenceGenerator
+        sequenceGenerator: SequenceGenerator,
+        sessionManager: SessionManager
     ): DeviceRepository {
         return DeviceRepositoryImpl(
             connectionRepository, messageSerializer, sequenceGenerator,
+            sessionManager,
             appVersion = "1.0.0"
         )
     }
