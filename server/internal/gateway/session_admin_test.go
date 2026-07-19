@@ -3,14 +3,16 @@ package gateway
 import (
 	"testing"
 	"time"
+
+	"github.com/xaiop/project-sentinel/server/internal/protocol"
 )
 
-func TestSession_IsAdmin_AuthenticatedNoDeviceID(t *testing.T) {
+func TestSession_IsAdmin_AuthenticatedNoRegistration(t *testing.T) {
 	s := NewSession("conn-1", time.Now(), nil)
-	s.SetAuthenticated("")
+	s.SetAuthenticated("ADMIN-001")
 
 	if !s.IsAdmin() {
-		t.Error("expected IsAdmin=true for authenticated session with no deviceID")
+		t.Error("expected IsAdmin=true for authenticated session without registration")
 	}
 }
 
@@ -22,11 +24,17 @@ func TestSession_IsAdmin_NotAuthenticated(t *testing.T) {
 	}
 }
 
-func TestSession_IsAdmin_HostSession(t *testing.T) {
+func TestSession_IsAdmin_RegisteredHostSession(t *testing.T) {
 	s := NewSession("conn-1", time.Now(), nil)
 	s.SetAuthenticated("HOST-001")
+	s.SetRegistered(protocol.RegisterMessage{
+		DeviceID:   "HOST-001",
+		DeviceName: "Test Device",
+		AppVersion: "1.0",
+		Model:      "Pixel",
+	})
 
 	if s.IsAdmin() {
-		t.Error("expected IsAdmin=false for host session with deviceID")
+		t.Error("expected IsAdmin=false for registered host session")
 	}
 }

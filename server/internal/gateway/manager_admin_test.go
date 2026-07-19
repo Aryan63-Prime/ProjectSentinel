@@ -3,6 +3,8 @@ package gateway
 import (
 	"testing"
 	"time"
+
+	"github.com/xaiop/project-sentinel/server/internal/protocol"
 )
 
 func TestManager_ForEachAdmin_OnlyCallsAdminSessions(t *testing.T) {
@@ -15,13 +17,19 @@ func TestManager_ForEachAdmin_OnlyCallsAdminSessions(t *testing.T) {
 		ConnectionID: "admin-1",
 		Send:         adminSend,
 	})
-	adminSession.SetAuthenticated("")
+	adminSession.SetAuthenticated("ADMIN-001")
 
 	hostSession := NewSession("host-1", time.Now(), &Client{
 		ConnectionID: "host-1",
 		Send:         hostSend,
 	})
 	hostSession.SetAuthenticated("HOST-001")
+	hostSession.SetRegistered(protocol.RegisterMessage{
+		DeviceID:   "HOST-001",
+		DeviceName: "Test Host",
+		AppVersion: "1.0",
+		Model:      "Pixel",
+	})
 
 	unauthSession := NewSession("unauth-1", time.Now(), &Client{
 		ConnectionID: "unauth-1",
@@ -53,6 +61,12 @@ func TestManager_ForEachAdmin_NoAdmins(t *testing.T) {
 		Send:         make(chan outgoingMessage, 10),
 	})
 	hostSession.SetAuthenticated("HOST-001")
+	hostSession.SetRegistered(protocol.RegisterMessage{
+		DeviceID:   "HOST-001",
+		DeviceName: "Test Host",
+		AppVersion: "1.0",
+		Model:      "Pixel",
+	})
 	m.Add(hostSession)
 
 	count := 0

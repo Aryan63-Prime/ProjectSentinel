@@ -164,5 +164,5 @@ func (s *Session) IsAdmin() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return s.authenticated && s.deviceID == ""
+	return s.authenticated && !s.registered
 }
