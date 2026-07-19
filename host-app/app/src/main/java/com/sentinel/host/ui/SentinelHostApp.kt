@@ -11,6 +11,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.sentinel.host.ui.dashboard.DashboardScreen
 import com.sentinel.host.ui.login.LoginScreen
+import com.sentinel.host.ui.permissions.PermissionScreen
 import com.sentinel.host.ui.settings.SettingsScreen
 import com.sentinel.host.ui.theme.SentinelHostTheme
 
@@ -22,9 +23,18 @@ fun SentinelHostApp() {
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
             NavHost(
                 navController = navController,
-                startDestination = Screen.Login.route,
+                startDestination = Screen.Permissions.route,
                 modifier = Modifier.padding(innerPadding)
             ) {
+                composable(Screen.Permissions.route) {
+                    PermissionScreen(
+                        onAllGranted = {
+                            navController.navigate(Screen.Login.route) {
+                                popUpTo(Screen.Permissions.route) { inclusive = true }
+                            }
+                        }
+                    )
+                }
                 composable(Screen.Login.route) {
                     LoginScreen(
                         onConnected = {
@@ -52,7 +62,9 @@ fun SentinelHostApp() {
 }
 
 sealed class Screen(val route: String) {
+    data object Permissions : Screen("permissions")
     data object Login : Screen("login")
     data object Dashboard : Screen("dashboard")
     data object Settings : Screen("settings")
 }
+
