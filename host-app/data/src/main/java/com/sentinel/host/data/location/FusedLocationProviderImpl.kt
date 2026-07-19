@@ -86,6 +86,24 @@ class FusedLocationProviderImpl(context: Context) : LocationProvider {
         fusedClient.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
         isActive = true
         Log.i(TAG, "Location updates started (interval=${config.intervalMs}ms, distance=${config.minDistanceMeters}m)")
+
+        // Immediately emit last known location as a fallback while waiting for GPS fix
+        fusedClient.lastLocation.addOnSuccessListener { location ->
+            if (location != null) {
+                val update = LocationUpdate(
+                    latitude = location.latitude,
+                    longitude = location.longitude,
+                    accuracy = location.accuracy,
+                    battery = 0,
+                    network = ""
+                )
+                _lastLocation = update
+                _locations.tryEmit(update)
+                Log.i(TAG, "Last known location: ${location.latitude}, ${location.longitude}")
+            } else {
+                Log.w(TAG, "No last known location available")
+            }
+        }
     }
 
     override fun stopUpdates() {

@@ -6,7 +6,7 @@ package com.sentinel.host.domain.model
  */
 data class LocationConfig(
     /** Desired interval between updates in milliseconds. */
-    val intervalMs: Long = 15_000L,
+    val intervalMs: Long = 5_000L,
 
     /** Fastest interval the app can handle in milliseconds. */
     val fastestIntervalMs: Long = 5_000L,
