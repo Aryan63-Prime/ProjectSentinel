@@ -12,7 +12,7 @@ data class LocationConfig(
     val fastestIntervalMs: Long = 5_000L,
 
     /** Minimum displacement in meters to trigger an update. */
-    val minDistanceMeters: Float = 10f,
+    val minDistanceMeters: Float = 0f,
 
     /**
      * Location priority:
@@ -21,5 +21,5 @@ data class LocationConfig(
      * - PRIORITY_LOW_POWER = 104
      * - PRIORITY_PASSIVE = 105
      */
-    val priority: Int = 102
+    val priority: Int = 100
 )
