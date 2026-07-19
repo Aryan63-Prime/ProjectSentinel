@@ -2,6 +2,9 @@ package com.sentinel.host.data.location
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.os.Looper
 import android.util.Log
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -37,8 +40,17 @@ class FusedLocationProviderImpl(context: Context) : LocationProvider {
         private const val TAG = "Sentinel:Location"
     }
 
+    private val appContext: Context = context.applicationContext
+
     private val fusedClient: FusedLocationProviderClient =
         LocationServices.getFusedLocationProviderClient(context)
+
+    private fun getBatteryLevel(): Int {
+        val intent = appContext.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, 100) ?: 100
+        return if (level >= 0 && scale > 0) (level * 100 / scale) else 0
+    }
 
     private val _locations = MutableSharedFlow<LocationUpdate>(
         extraBufferCapacity = 1,
@@ -61,8 +73,8 @@ class FusedLocationProviderImpl(context: Context) : LocationProvider {
                 latitude = location.latitude,
                 longitude = location.longitude,
                 accuracy = location.accuracy,
-                battery = 0, // Filled by caller
-                network = "" // Filled by caller
+                battery = getBatteryLevel(),
+                network = ""
             )
             _lastLocation = update
             _locations.tryEmit(update)
@@ -94,7 +106,7 @@ class FusedLocationProviderImpl(context: Context) : LocationProvider {
                     latitude = location.latitude,
                     longitude = location.longitude,
                     accuracy = location.accuracy,
-                    battery = 0,
+                    battery = getBatteryLevel(),
                     network = ""
                 )
                 _lastLocation = update
