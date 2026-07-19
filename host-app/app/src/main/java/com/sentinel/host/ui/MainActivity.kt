@@ -14,38 +14,21 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
-import com.sentinel.host.domain.model.ConnectionState
-import com.sentinel.host.service.AudioStreamer
-import com.sentinel.host.service.ConnectionSupervisor
-import com.sentinel.host.service.LocationStreamer
-import com.sentinel.host.domain.usecase.ConnectUseCase
+import com.sentinel.host.service.SentinelForegroundService
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "Sentinel:Main"
-        private const val SERVER_URL = "wss://project-sentinel-rwt4.onrender.com/ws"
-        private const val JWT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkZXZpY2VfaWQiOiJIT1NULTAwMSIsImlzcyI6InByb2plY3Qtc2VudGluZWwiLCJzdWIiOiJIT1NULTAwMSIsImV4cCI6MTgxNTg5MDcwMywiaWF0IjoxNzg0MzU0NzAzfQ.l_yJzhLSY0Kuhudn6-5W81pyv77NBZkDsZVdXgWKeSA"
     }
-
-    @Inject lateinit var connectUseCase: ConnectUseCase
-    @Inject lateinit var connectionSupervisor: ConnectionSupervisor
-    @Inject lateinit var locationStreamer: LocationStreamer
-    @Inject lateinit var audioStreamer: AudioStreamer
-
-
 
     // Step 1: Request foreground location + microphone + notifications
     private val corePermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
         Log.i(TAG, "Core permissions: $results")
-        updateStreamerPermissions()
 
         // Step 2: After foreground location granted, request background location
         if (results[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
@@ -54,6 +37,9 @@ class MainActivity : ComponentActivity() {
 
         // Step 3: Request battery optimization exemption
         requestBatteryOptimization()
+
+        // Start the foreground service after permissions are granted
+        startSentinelService()
     }
 
     // Step 2: Background location (requires separate request on Android 10+)
@@ -71,32 +57,8 @@ class MainActivity : ComponentActivity() {
             SentinelHostApp()
         }
 
-        // Auto-connect on launch
-        autoConnect()
-    }
-
-    private fun autoConnect() {
-        // Set streamer permissions from current grant state BEFORE connecting.
-        // This ensures hasPermission is true when ConnectionSupervisor reaches Ready
-        // and calls locationStreamer.start() / audioStreamer.start().
-        updateStreamerPermissions()
-
-        // Request any missing permissions immediately
+        // Request permissions first, then start service
         requestAllPermissions()
-
-        // Start the connection
-        connectionSupervisor.start()
-
-        lifecycleScope.launch {
-            Log.i(TAG, "Auto-connecting to $SERVER_URL")
-            val result = connectUseCase.execute(SERVER_URL, JWT_TOKEN)
-            result.onSuccess {
-                Log.i(TAG, "Connected and registered successfully")
-            }
-            result.onFailure { error ->
-                Log.e(TAG, "Auto-connect failed: ${error.message}")
-            }
-        }
     }
 
     private fun requestAllPermissions() {
@@ -120,9 +82,9 @@ class MainActivity : ComponentActivity() {
             corePermissionLauncher.launch(needed.toTypedArray())
         } else {
             Log.i(TAG, "All core permissions already granted")
-            updateStreamerPermissions()
             requestBackgroundLocation()
             requestBatteryOptimization()
+            startSentinelService()
         }
     }
 
@@ -145,35 +107,21 @@ class MainActivity : ComponentActivity() {
                 }
                 startActivity(intent)
             } catch (e: Exception) {
-                Log.w(TAG, "Could not request battery optimization exemption: ${e.message}")
+                Log.w(TAG, "Could not request battery optimization: ${e.message}")
             }
         }
     }
 
     /**
-     * Sets hasPermission on LocationStreamer and AudioStreamer based on actual grant state.
-     * This triggers the streamers to start sending data.
+     * Starts the foreground service which handles connection, location, and audio.
      */
-    private fun updateStreamerPermissions() {
-        val locationGranted = ContextCompat.checkSelfPermission(
-            this, Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        val audioGranted = ContextCompat.checkSelfPermission(
-            this, Manifest.permission.RECORD_AUDIO
-        ) == PackageManager.PERMISSION_GRANTED
-
-        Log.i(TAG, "Updating streamer permissions: location=$locationGranted, audio=$audioGranted")
-
-        locationStreamer.hasPermission = locationGranted
-        audioStreamer.hasPermission = audioGranted
-
-        // If streamers were waiting for permissions, start them now
-        if (locationGranted && connectionSupervisor.state.value is ConnectionState.Ready) {
-            locationStreamer.start()
+    private fun startSentinelService() {
+        val intent = Intent(this, SentinelForegroundService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
         }
-        if (audioGranted && connectionSupervisor.state.value is ConnectionState.Ready) {
-            audioStreamer.start()
-        }
+        Log.i(TAG, "Foreground service started")
     }
 }

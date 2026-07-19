@@ -45,6 +45,11 @@
             </intent-filter>
         </activity>
 
+        <service
+            android:name=".service.SentinelForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="location|microphone" />
+
     </application>
 
 </manifest>

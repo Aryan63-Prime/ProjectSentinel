@@ -10,5 +10,5 @@ object AudioConstants {
     const val CHANNELS = 1
     const val FRAME_DURATION_MS = 20
     const val SAMPLES_PER_FRAME = SAMPLE_RATE * FRAME_DURATION_MS / 1000
-    const val INITIAL_BITRATE = 24000
+    const val INITIAL_BITRATE = 48000
 }
