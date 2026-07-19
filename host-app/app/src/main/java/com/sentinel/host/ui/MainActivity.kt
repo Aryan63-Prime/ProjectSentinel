@@ -21,7 +21,6 @@ import com.sentinel.host.service.ConnectionSupervisor
 import com.sentinel.host.service.LocationStreamer
 import com.sentinel.host.domain.usecase.ConnectUseCase
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -39,7 +38,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var locationStreamer: LocationStreamer
     @Inject lateinit var audioStreamer: AudioStreamer
 
-    private var permissionsRequested = false
+
 
     // Step 1: Request foreground location + microphone + notifications
     private val corePermissionLauncher = registerForActivityResult(
@@ -77,6 +76,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun autoConnect() {
+        // Set streamer permissions from current grant state BEFORE connecting.
+        // This ensures hasPermission is true when ConnectionSupervisor reaches Ready
+        // and calls locationStreamer.start() / audioStreamer.start().
+        updateStreamerPermissions()
+
+        // Request any missing permissions immediately
+        requestAllPermissions()
+
+        // Start the connection
         connectionSupervisor.start()
 
         lifecycleScope.launch {
@@ -87,16 +95,6 @@ class MainActivity : ComponentActivity() {
             }
             result.onFailure { error ->
                 Log.e(TAG, "Auto-connect failed: ${error.message}")
-            }
-        }
-
-        // Watch for Ready state to request permissions and set streamer flags
-        lifecycleScope.launch {
-            connectionSupervisor.state.collectLatest { state ->
-                if (state is ConnectionState.Ready && !permissionsRequested) {
-                    permissionsRequested = true
-                    requestAllPermissions()
-                }
             }
         }
     }
