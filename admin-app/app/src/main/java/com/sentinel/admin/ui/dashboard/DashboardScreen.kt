@@ -203,7 +203,7 @@ fun DashboardScreen(
                             ) {
                                 items(
                                     items = uiState.displayDevices,
-                                    key = { it.deviceId }
+                                    key = { it.connectionId }
                                 ) { device ->
                                     DeviceCard(
                                         device = device,
