@@ -87,7 +87,7 @@ class ConnectionRepositoryImpl(
  * Maps transport WebSocketState → domain ConnectionState.
  * Only transport-level states are mapped here.
  */
-internal fun WebSocketState.toDomainState(): ConnectionState = when (this) {
+fun WebSocketState.toDomainState(): ConnectionState = when (this) {
     is WebSocketState.Disconnected -> ConnectionState.Disconnected
     is WebSocketState.Connecting -> ConnectionState.Connecting
     is WebSocketState.Connected -> ConnectionState.TransportConnected
@@ -98,7 +98,7 @@ internal fun WebSocketState.toDomainState(): ConnectionState = when (this) {
 /**
  * Maps WebSocket state changes → ConnectionEvents.
  */
-internal fun WebSocketState.toEvent(): ConnectionEvent? = when (this) {
+fun WebSocketState.toEvent(): ConnectionEvent? = when (this) {
     is WebSocketState.Connected -> ConnectionEvent.Connected
     is WebSocketState.Disconnected -> ConnectionEvent.Disconnected
     is WebSocketState.Failed -> ConnectionEvent.ServerError(code ?: 0, reason)
@@ -112,7 +112,7 @@ internal fun WebSocketState.toEvent(): ConnectionEvent? = when (this) {
  * @param rawJson The original JSON string, passed through for DeviceUpdate events
  *                so the repository can deserialize the full payload.
  */
-internal fun IncomingMessage.toEvent(rawJson: String = ""): ConnectionEvent? = when (this) {
+fun IncomingMessage.toEvent(rawJson: String = ""): ConnectionEvent? = when (this) {
     is IncomingMessage.AuthAck -> ConnectionEvent.AuthResult(success)
     is IncomingMessage.HeartbeatAck -> ConnectionEvent.HeartbeatAck
     is IncomingMessage.Error -> ConnectionEvent.ServerError(code, message)

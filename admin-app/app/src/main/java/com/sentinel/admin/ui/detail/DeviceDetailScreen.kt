@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Battery4Bar
 import androidx.compose.material.icons.filled.BatteryFull
+import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.DevicesOther
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.NetworkCell
@@ -194,9 +195,11 @@ private fun DeviceContent(
 
         // Network card (from location data)
         device.latestLocation?.let { location ->
+            val isCharging = location.network.contains("(Charging)")
+            val cleanNetwork = location.network.replace(" (Charging)", "")
             InfoCard(title = "Network & Battery") {
-                InfoRow("Network Type", location.network)
-                InfoRow("Battery", "${location.battery}%")
+                InfoRow("Network Type", cleanNetwork)
+                InfoRow("Battery", "${location.battery}%" + if (isCharging) " (Charging)" else "")
             }
         }
 
@@ -308,9 +311,12 @@ private fun StatusHeader(
 
             // Battery icon
             device.latestLocation?.let { loc ->
+                val isCharging = loc.network.contains("(Charging)")
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        imageVector = if (loc.battery > 50) {
+                        imageVector = if (isCharging) {
+                            Icons.Default.BatteryChargingFull
+                        } else if (loc.battery > 50) {
                             Icons.Default.BatteryFull
                         } else {
                             Icons.Default.Battery4Bar

@@ -17,23 +17,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.LatLngBounds
-import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.Marker
-import com.google.maps.android.compose.rememberCameraPositionState
-import com.google.maps.android.compose.rememberMarkerState
+import android.annotation.SuppressLint
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.compose.ui.viewinterop.AndroidView
 
 /**
- * Map view for the Dashboard showing all device markers.
+ * Map view for the Dashboard showing all device markers using Leaflet.js and OpenStreetMap.
  *
- * - Green markers = online devices
- * - Red markers = offline devices
- * - Camera auto-fits all markers
- * - Marker click navigates to device detail
+ * - Auto-fit camera to show all markers
+ * - Marker click navigates to device detail via JavaScript interface
  */
+@SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
 @Composable
 fun DashboardMapView(
     markers: List<DeviceMarker>,
@@ -45,59 +41,136 @@ fun DashboardMapView(
         return
     }
 
-    val cameraPositionState = rememberCameraPositionState()
-
-    // Auto-fit camera to show all markers
-    LaunchedEffect(markers) {
-        if (markers.size == 1) {
-            val pos = LatLng(markers[0].latitude, markers[0].longitude)
-            cameraPositionState.animate(
-                CameraUpdateFactory.newLatLngZoom(pos, 15f)
-            )
-        } else {
-            val boundsBuilder = LatLngBounds.builder()
-            markers.forEach { marker ->
-                boundsBuilder.include(LatLng(marker.latitude, marker.longitude))
-            }
-            cameraPositionState.animate(
-                CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 100)
-            )
+    val markersJson = markers.joinToString(separator = ",", prefix = "[", postfix = "]") { marker ->
+        val cleanSnippet = marker.snippet.replace(" (Charging)", "")
+        """
+        {
+            "deviceId": "${marker.deviceId}",
+            "deviceName": "${marker.deviceName.replace("'", "\\'")}",
+            "snippet": "${cleanSnippet.replace("'", "\\'")}",
+            "latitude": ${marker.latitude},
+            "longitude": ${marker.longitude},
+            "isOnline": ${marker.isOnline}
         }
+        """.trimIndent()
     }
 
-    GoogleMap(
+    AndroidView(
         modifier = modifier.fillMaxSize(),
-        cameraPositionState = cameraPositionState
-    ) {
-        markers.forEach { marker ->
-            val markerState = rememberMarkerState(
-                key = marker.deviceId,
-                position = LatLng(marker.latitude, marker.longitude)
-            )
-
-            // Update position when marker data changes
-            LaunchedEffect(marker.latitude, marker.longitude) {
-                markerState.position = LatLng(marker.latitude, marker.longitude)
+        factory = { context ->
+            val cssContent = try {
+                context.assets.open("leaflet.css").bufferedReader().use { it.readText() }
+            } catch (e: Exception) {
+                ""
+            }
+            val jsContent = try {
+                context.assets.open("leaflet.js").bufferedReader().use { it.readText() }
+            } catch (e: Exception) {
+                ""
             }
 
-            Marker(
-                state = markerState,
-                title = marker.deviceName,
-                snippet = marker.snippet,
-                icon = BitmapDescriptorFactory.defaultMarker(
-                    if (marker.isOnline) {
-                        BitmapDescriptorFactory.HUE_GREEN
-                    } else {
-                        BitmapDescriptorFactory.HUE_RED
+            WebView(context).apply {
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                settings.allowFileAccess = true
+                settings.allowContentAccess = true
+                @Suppress("DEPRECATION")
+                settings.allowFileAccessFromFileURLs = true
+                @Suppress("DEPRECATION")
+                settings.allowUniversalAccessFromFileURLs = true
+                settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                webViewClient = object : WebViewClient() {
+                    override fun onPageFinished(view: WebView?, url: String?) {
+                        super.onPageFinished(view, url)
+                        view?.evaluateJavascript(
+                            "if (typeof updateMarkers === 'function') { updateMarkers($markersJson); }",
+                            null
+                        )
                     }
-                ),
-                onClick = {
-                    onMarkerClick(marker.deviceId)
-                    true
                 }
+                addJavascriptInterface(object {
+                    @JavascriptInterface
+                    fun onMarkerClick(deviceId: String) {
+                        post {
+                            onMarkerClick(deviceId)
+                        }
+                    }
+                }, "AndroidInterface")
+
+                val html = """
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+                        <style>
+                            $cssContent
+                            html, body { height: 100%; margin: 0; padding: 0; background: #121212; }
+                            #map { position: absolute; top: 0; bottom: 0; left: 0; right: 0; background: #121212; }
+                            .leaflet-container { background: #121212; }
+                        </style>
+                        <script>
+                            $jsContent
+                        </script>
+                    </head>
+                    <body>
+                        <div id="map"></div>
+                        <script>
+                            var map = L.map('map', { zoomControl: false }).setView([0.0, 0.0], 2);
+                            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                maxZoom: 19,
+                                attribution: '© OpenStreetMap'
+                            }).addTo(map);
+
+                            var markersList = {};
+
+                            function updateMarkers(markersData) {
+                                map.invalidateSize();
+                                // Remove old markers
+                                for (var id in markersList) {
+                                    map.removeLayer(markersList[id]);
+                                }
+                                markersList = {};
+
+                                var groupPoints = [];
+                                markersData.forEach(function(m) {
+                                    var newColor = m.isOnline ? '#2e7d32' : '#d32f2f';
+                                    var marker = L.circleMarker([m.latitude, m.longitude], {
+                                        radius: 8,
+                                        color: '#ffffff',
+                                        weight: 2,
+                                        fillColor: newColor,
+                                        fillOpacity: 1.0
+                                    }).addTo(map)
+                                        .bindPopup('<b>' + m.deviceName + '</b><br>' + m.snippet);
+                                    
+                                    marker.on('click', function() {
+                                        AndroidInterface.onMarkerClick(m.deviceId);
+                                    });
+                                    
+                                    markersList[m.deviceId] = marker;
+                                    groupPoints.push([m.latitude, m.longitude]);
+                                });
+
+                                if (groupPoints.length === 1) {
+                                    map.setView(groupPoints[0], 15);
+                                } else if (groupPoints.length > 1) {
+                                    map.fitBounds(groupPoints, { padding: [50, 50] });
+                                }
+                            }
+                        </script>
+                    </body>
+                    </html>
+                """.trimIndent()
+                loadDataWithBaseURL("file:///android_asset/", html, "text/html", "UTF-8", null)
+            }
+        },
+        update = { webView ->
+            webView.evaluateJavascript(
+                "if (typeof updateMarkers === 'function') { updateMarkers($markersJson); }",
+                null
             )
         }
-    }
+    )
 }
 
 @Composable

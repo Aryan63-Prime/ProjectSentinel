@@ -99,7 +99,7 @@ class DeviceRepositoryImpl(
 
             val response = deviceApi.getDevices("Bearer $token")
             val deviceList = response.devices.map { it.toDomain() }
-                .filter { it.registrationState == "Registered" }  // Exclude admin's own session
+                .filter { it.registered }  // Exclude admin's own session (unregistered)
 
             // Populate the live map from REST snapshot
             val deviceMap = deviceList.associateBy { it.deviceId }

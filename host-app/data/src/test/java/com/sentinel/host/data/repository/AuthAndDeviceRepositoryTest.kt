@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import com.sentinel.host.domain.session.SessionManager
 import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -105,7 +106,7 @@ class DeviceRepositoryImplTest {
         fakeRepo = FakeConnectionRepository(fakeEvents)
         serializer = MessageSerializer()
         sequenceGen = SequenceGenerator()
-        deviceRepo = DeviceRepositoryImpl(fakeRepo, serializer, sequenceGen, "1.0.0-test")
+        deviceRepo = DeviceRepositoryImpl(fakeRepo, serializer, sequenceGen, FakeSessionManager(), "1.0.0-test")
     }
 
     @After
@@ -180,3 +181,20 @@ internal class FakeConnectionRepository(
 
     override fun sendBinary(data: ByteArray): Boolean = true
 }
+
+internal class FakeSessionManager : SessionManager {
+    private var token: String? = null
+    private var serverUrl: String? = null
+
+    override fun saveToken(token: String) { this.token = token }
+    override fun getToken(): String? = token
+    override fun clearToken() { token = null }
+    override fun saveServerUrl(url: String) { this.serverUrl = url }
+    override fun getServerUrl(): String? = serverUrl
+    override fun hasSession(): Boolean = token != null
+    override fun clear() {
+        token = null
+        serverUrl = null
+    }
+}
+

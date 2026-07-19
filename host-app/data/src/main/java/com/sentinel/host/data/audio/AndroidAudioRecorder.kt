@@ -4,6 +4,9 @@ import android.annotation.SuppressLint
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.media.audiofx.NoiseSuppressor
+import android.media.audiofx.AutomaticGainControl
+import android.media.audiofx.AcousticEchoCanceler
 import android.util.Log
 import com.sentinel.host.domain.audio.AudioRecorder
 import com.sentinel.shared.protocol.AudioConstants
@@ -12,11 +15,11 @@ import com.sentinel.shared.protocol.AudioConstants
  * Wraps [android.media.AudioRecord] behind the [AudioRecorder] interface.
  *
  * Configuration (per PROTOCOL.md / AudioConstants):
- * - Source: VOICE_COMMUNICATION (echo cancellation + noise suppression)
+ * - Source: VOICE_RECOGNITION (ideal voice clarity, noise/echo suppressed but not gated)
  * - Sample rate: 48000 Hz
  * - Channel: Mono
  * - Encoding: PCM 16-bit
- * - Buffer: 2x minimum (double-buffered for smooth reads)
+ * - Buffer: Max of 4x minimum or 64KB (prevent buffer underruns/crackle)
  *
  * State transitions:
  * - Created → [start] → Recording → [stop] → Stopped → [close]
@@ -36,6 +39,9 @@ class AndroidAudioRecorder : AudioRecorder {
     }
 
     private var audioRecord: AudioRecord? = null
+    private var noiseSuppressor: NoiseSuppressor? = null
+    private var automaticGainControl: AutomaticGainControl? = null
+    private var acousticEchoCanceler: AcousticEchoCanceler? = null
 
     @Volatile
     override var isRecording: Boolean = false
@@ -62,26 +68,31 @@ class AndroidAudioRecorder : AudioRecorder {
             return false
         }
 
-        // Double-buffer for smooth reads
-        val bufferSize = minBufferSize * 2
+        // Increase buffer to prevent overflow crackle
+        val bufferSize = Math.max(minBufferSize * 4, 65536)
 
         try {
-            audioRecord = AudioRecord(
+            val record = AudioRecord(
                 MediaRecorder.AudioSource.VOICE_COMMUNICATION,
                 AudioConstants.SAMPLE_RATE,
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT,
                 bufferSize
             )
+            audioRecord = record
 
-            if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-                Log.e(TAG, "AudioRecord failed to initialize (state=${audioRecord?.state})")
-                audioRecord?.release()
+            if (record.state != AudioRecord.STATE_INITIALIZED) {
+                Log.e(TAG, "AudioRecord failed to initialize (state=${record.state})")
+                record.release()
                 audioRecord = null
                 return false
             }
 
-            audioRecord?.startRecording()
+            // Note: Hardware NoiseSuppressor, AcousticEchoCanceler, and AGC are automatically
+            // initialized by the OS audio hardware layer when using VOICE_COMMUNICATION source.
+            // Programmatic instantiation is skipped to avoid redundant filters causing cutouts.
+
+            record.startRecording()
             isRecording = true
             Log.i(TAG, "Recording started (rate=${AudioConstants.SAMPLE_RATE}, " +
                 "bufferSize=$bufferSize, minBuffer=$minBufferSize)")
@@ -90,6 +101,12 @@ class AndroidAudioRecorder : AudioRecorder {
             Log.e(TAG, "Failed to start recording: ${e.message}")
             audioRecord?.release()
             audioRecord = null
+            noiseSuppressor?.release()
+            noiseSuppressor = null
+            automaticGainControl?.release()
+            automaticGainControl = null
+            acousticEchoCanceler?.release()
+            acousticEchoCanceler = null
             return false
         }
     }
@@ -102,6 +119,12 @@ class AndroidAudioRecorder : AudioRecorder {
         } catch (e: IllegalStateException) {
             Log.w(TAG, "AudioRecord.stop() failed: ${e.message}")
         }
+        noiseSuppressor?.release()
+        noiseSuppressor = null
+        automaticGainControl?.release()
+        automaticGainControl = null
+        acousticEchoCanceler?.release()
+        acousticEchoCanceler = null
         isRecording = false
         Log.i(TAG, "Recording stopped")
     }

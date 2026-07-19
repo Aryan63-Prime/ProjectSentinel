@@ -7,6 +7,9 @@ import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Looper
 import android.util.Log
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.telephony.TelephonyManager
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -74,7 +77,7 @@ class FusedLocationProviderImpl(context: Context) : LocationProvider {
                 longitude = location.longitude,
                 accuracy = location.accuracy,
                 battery = getBatteryLevel(),
-                network = ""
+                network = getNetworkString()
             )
             _lastLocation = update
             _locations.tryEmit(update)
@@ -107,7 +110,7 @@ class FusedLocationProviderImpl(context: Context) : LocationProvider {
                     longitude = location.longitude,
                     accuracy = location.accuracy,
                     battery = getBatteryLevel(),
-                    network = ""
+                    network = getNetworkString()
                 )
                 _lastLocation = update
                 _locations.tryEmit(update)
@@ -132,5 +135,59 @@ class FusedLocationProviderImpl(context: Context) : LocationProvider {
             105 -> Priority.PRIORITY_PASSIVE
             else -> Priority.PRIORITY_BALANCED_POWER_ACCURACY
         }
+    }
+
+    private fun isBatteryCharging(): Boolean {
+        val intent = appContext.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+        return status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+    }
+
+    private fun getNetworkType(): String {
+        val cm = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        val activeNetwork = cm?.activeNetwork ?: return "offline"
+        val capabilities = cm.getNetworkCapabilities(activeNetwork) ?: return "unknown"
+        return when {
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "WiFi"
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> {
+                val tm = appContext.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+                val networkType = try {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                        tm?.dataNetworkType ?: TelephonyManager.NETWORK_TYPE_UNKNOWN
+                    } else {
+                        TelephonyManager.NETWORK_TYPE_UNKNOWN
+                    }
+                } catch (e: SecurityException) {
+                    TelephonyManager.NETWORK_TYPE_UNKNOWN
+                }
+                when (networkType) {
+                    TelephonyManager.NETWORK_TYPE_GPRS,
+                    TelephonyManager.NETWORK_TYPE_EDGE,
+                    TelephonyManager.NETWORK_TYPE_CDMA,
+                    TelephonyManager.NETWORK_TYPE_1xRTT,
+                    TelephonyManager.NETWORK_TYPE_IDEN -> "2G"
+                    TelephonyManager.NETWORK_TYPE_UMTS,
+                    TelephonyManager.NETWORK_TYPE_EVDO_0,
+                    TelephonyManager.NETWORK_TYPE_EVDO_A,
+                    TelephonyManager.NETWORK_TYPE_HSDPA,
+                    TelephonyManager.NETWORK_TYPE_HSUPA,
+                    TelephonyManager.NETWORK_TYPE_HSPA,
+                    TelephonyManager.NETWORK_TYPE_EVDO_B,
+                    TelephonyManager.NETWORK_TYPE_EHRPD,
+                    TelephonyManager.NETWORK_TYPE_HSPAP -> "3G"
+                    TelephonyManager.NETWORK_TYPE_LTE,
+                    TelephonyManager.NETWORK_TYPE_IWLAN -> "4G"
+                    TelephonyManager.NETWORK_TYPE_NR -> "5G"
+                    else -> "Cellular"
+                }
+            }
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "Ethernet"
+            else -> "unknown"
+        }
+    }
+
+    private fun getNetworkString(): String {
+        val type = getNetworkType()
+        return if (isBatteryCharging()) "$type (Charging)" else type
     }
 }

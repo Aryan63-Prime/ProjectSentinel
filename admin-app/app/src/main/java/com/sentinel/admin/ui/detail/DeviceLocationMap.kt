@@ -23,23 +23,27 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.google.android.gms.maps.model.LatLng
-import com.google.maps.android.compose.Circle
-import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.Marker
-import com.google.maps.android.compose.rememberCameraPositionState
-import com.google.maps.android.compose.rememberMarkerState
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import android.net.Uri
+import android.annotation.SuppressLint
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.webkit.WebChromeClient
+import android.webkit.ConsoleMessage
+import androidx.compose.ui.viewinterop.AndroidView
 import com.sentinel.admin.domain.model.DeviceLocation
 
 /**
  * Map card for the Device Detail screen.
  *
- * Shows device location with a marker and accuracy circle.
- * Camera centered on device at zoom 17.
+ * Shows device location with a marker and accuracy circle using Leaflet.js and OpenStreetMap.
  * If no location, shows "No location available".
  */
+@SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun DeviceLocationMap(
     location: DeviceLocation?,
@@ -69,40 +73,158 @@ fun DeviceLocationMap(
                 modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
             )
 
-            val pos = LatLng(location.latitude, location.longitude)
-            val cameraPositionState = rememberCameraPositionState()
-            val markerState = rememberMarkerState(position = pos)
-
-            LaunchedEffect(pos) {
-                cameraPositionState.animate(
-                    CameraUpdateFactory.newLatLngZoom(pos, 17f)
-                )
-                markerState.position = pos
-            }
-
-            GoogleMap(
+            val cleanNetwork = location.network.replace(" (Charging)", "")
+            val context = LocalContext.current
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(250.dp)
-                    .clip(RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp)),
-                cameraPositionState = cameraPositionState
+                    .clip(RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp))
             ) {
-                Marker(
-                    state = markerState,
-                    title = deviceName,
-                    snippet = "${location.battery}% · ${location.network}",
-                    icon = BitmapDescriptorFactory.defaultMarker(
-                        if (isOnline) BitmapDescriptorFactory.HUE_GREEN
-                        else BitmapDescriptorFactory.HUE_RED
-                    )
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { ctx ->
+                        try {
+                            val assetList = ctx.assets.list("")
+                            android.util.Log.i("Sentinel:Assets", "Assets list: ${assetList?.joinToString(", ")}")
+                        } catch (e: Exception) {
+                            android.util.Log.e("Sentinel:Assets", "Failed to list assets", e)
+                        }
+
+                        val cssContent = try {
+                            val text = ctx.assets.open("leaflet.css").bufferedReader().use { it.readText() }
+                            android.util.Log.i("Sentinel:Assets", "Loaded leaflet.css successfully: ${text.length} chars")
+                            text
+                        } catch (e: Exception) {
+                            android.util.Log.e("Sentinel:Assets", "Error loading leaflet.css", e)
+                            ""
+                        }
+                        val jsContent = try {
+                            val text = ctx.assets.open("leaflet.js").bufferedReader().use { it.readText() }
+                            android.util.Log.i("Sentinel:Assets", "Loaded leaflet.js successfully: ${text.length} chars")
+                            text
+                        } catch (e: Exception) {
+                            android.util.Log.e("Sentinel:Assets", "Error loading leaflet.js", e)
+                            ""
+                        }
+
+                         WebView(ctx).apply {
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            settings.allowFileAccess = true
+                            settings.allowContentAccess = true
+                            @Suppress("DEPRECATION")
+                            settings.allowFileAccessFromFileURLs = true
+                            @Suppress("DEPRECATION")
+                            settings.allowUniversalAccessFromFileURLs = true
+                            settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                            webViewClient = object : WebViewClient() {
+                                override fun onPageFinished(view: WebView?, url: String?) {
+                                    super.onPageFinished(view, url)
+                                    view?.evaluateJavascript(
+                                        "if (typeof updatePosition === 'function') { updatePosition(${location.latitude}, ${location.longitude}, ${location.accuracy}, ${location.battery}, '$cleanNetwork', $isOnline); }",
+                                        null
+                                    )
+                                }
+                            }
+                            webChromeClient = object : WebChromeClient() {
+                                override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                                    android.util.Log.d("Sentinel:WebConsole", "${consoleMessage?.message()} -- From line ${consoleMessage?.lineNumber()} of ${consoleMessage?.sourceId()}")
+                                    return true
+                                }
+                            }
+                            
+                            val color = if (isOnline) "#2e7d32" else "#d32f2f"
+                            val html = """
+                                <!DOCTYPE html>
+                                <html>
+                                <head>
+                                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+                                    <style>
+                                        $cssContent
+                                        html, body { height: 100%; margin: 0; padding: 0; background: #121212; }
+                                        #map { position: absolute; top: 0; bottom: 0; left: 0; right: 0; background: #121212; }
+                                        .leaflet-container { background: #121212; }
+                                    </style>
+                                    <script>
+                                        $jsContent
+                                    </script>
+                                </head>
+                                <body>
+                                    <div id="map"></div>
+                                    <script>
+                                        var map = L.map('map', { zoomControl: false }).setView([${location.latitude}, ${location.longitude}], 16);
+                                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                            maxZoom: 19,
+                                            attribution: '© OpenStreetMap'
+                                        }).addTo(map);
+                                        
+                                        // Use premium vector circleMarker instead of default image pin
+                                        var marker = L.circleMarker([${location.latitude}, ${location.longitude}], {
+                                            radius: 8,
+                                            color: '#ffffff',
+                                            weight: 2,
+                                            fillColor: '$color',
+                                            fillOpacity: 1.0
+                                        }).addTo(map)
+                                            .bindPopup('<b>$deviceName</b><br>${location.battery}% · $cleanNetwork')
+                                            .openPopup();
+
+                                        var circle = L.circle([${location.latitude}, ${location.longitude}], {
+                                            color: '$color',
+                                            fillColor: '$color',
+                                            fillOpacity: 0.15,
+                                            radius: ${location.accuracy}
+                                        }).addTo(map);
+                                        
+                                        function updatePosition(lat, lng, acc, batt, net, online) {
+                                            map.invalidateSize();
+                                            var newPos = [lat, lng];
+                                            map.setView(newPos, 16);
+                                            marker.setLatLng(newPos);
+                                            marker.setPopupContent('<b>' + '$deviceName' + '</b><br>' + batt + '% · ' + net);
+                                            circle.setLatLng(newPos);
+                                            circle.setRadius(acc);
+                                            var newColor = online ? '#2e7d32' : '#d32f2f';
+                                            marker.setStyle({ fillColor: newColor });
+                                            circle.setStyle({ color: newColor, fillColor: newColor });
+                                        }
+                                    </script>
+                                </body>
+                                </html>
+                            """.trimIndent()
+                            loadDataWithBaseURL("file:///android_asset/", html, "text/html", "UTF-8", null)
+                        }
+                    },
+                    update = { webView ->
+                        webView.evaluateJavascript(
+                            "if (typeof updatePosition === 'function') { updatePosition(${location.latitude}, ${location.longitude}, ${location.accuracy}, ${location.battery}, '$cleanNetwork', $isOnline); }",
+                            null
+                        )
+                    }
                 )
 
-                Circle(
-                    center = pos,
-                    radius = location.accuracy,
-                    fillColor = Color(0x220066FF),
-                    strokeColor = Color(0x880066FF),
-                    strokeWidth = 2f
+                // Clickable transparent overlay to open Google Maps with precise coordinates when tapped
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Transparent)
+                        .clickable {
+                            val uri = "geo:${location.latitude},${location.longitude}?q=${location.latitude},${location.longitude}(${Uri.encode(deviceName)})"
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uri)).apply {
+                                setPackage("com.google.android.apps.maps")
+                            }
+                            try {
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                try {
+                                    val fallbackIntent = Intent(Intent.ACTION_VIEW, Uri.parse(uri))
+                                    context.startActivity(fallbackIntent)
+                                } catch (ex: Exception) {
+                                    android.util.Log.e("Sentinel:Map", "Failed to start maps intent", ex)
+                                }
+                            }
+                        }
                 )
             }
         }
