@@ -10,6 +10,7 @@ import android.util.Log
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.telephony.TelephonyManager
+import android.location.LocationManager
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -125,6 +126,16 @@ class FusedLocationProviderImpl(context: Context) : LocationProvider {
         fusedClient.removeLocationUpdates(locationCallback)
         isActive = false
         Log.i(TAG, "Location updates stopped")
+    }
+
+    override fun isLocationEnabled(): Boolean {
+        val lm = appContext.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            lm.isLocationEnabled
+        } else {
+            lm.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+                    lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+        }
     }
 
     private fun mapPriority(priority: Int): Int {

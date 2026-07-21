@@ -155,11 +155,7 @@ class ConnectionSupervisor(
             }
 
             is ConnectionEvent.Registered -> {
-                Log.i(TAG, "Registered → Ready")
-                heartbeatScheduler.reset()
-                heartbeatScheduler.start()
-                locationStreamer.start()
-                audioStreamer.start()
+                onRegistered()
                 ConnectionState.Ready
             }
 
@@ -170,18 +166,26 @@ class ConnectionSupervisor(
 
             is ConnectionEvent.Error -> {
                 Log.e(TAG, "Error (code=${event.code}): ${event.message}")
-                audioStreamer.pause()
-                locationStreamer.pause()
-                heartbeatScheduler.stop()
-                if (isAuthError(event.code)) {
-                    // Permanent failure — don't reconnect
-                    ConnectionState.Error(event.message)
-                } else if (!userRequestedDisconnect && previousState != ConnectionState.Disconnected) {
-                    // Transport failure — reconnect
-                    startReconnectLoop()
-                    ConnectionState.Reconnecting(1)
+                
+                if (event.code == 409) {
+                    Log.i(TAG, "Device already registered, moving to Ready")
+                    onRegistered()
+                    ConnectionState.Ready
                 } else {
-                    ConnectionState.Error(event.message)
+                    audioStreamer.pause()
+                    locationStreamer.pause()
+                    heartbeatScheduler.stop()
+                    
+                    if (isAuthError(event.code)) {
+                        // Permanent failure — don't reconnect
+                        ConnectionState.Error(event.message)
+                    } else if (!userRequestedDisconnect && previousState != ConnectionState.Disconnected) {
+                        // Transport failure — reconnect
+                        startReconnectLoop()
+                        ConnectionState.Reconnecting(1)
+                    } else {
+                        ConnectionState.Error(event.message)
+                    }
                 }
             }
 
@@ -340,4 +344,12 @@ class ConnectionSupervisor(
     }
 
     private fun isAuthError(code: Int): Boolean = code in AUTH_ERROR_CODES
+
+    private fun onRegistered() {
+        Log.i(TAG, "Registered/Ready status confirmed")
+        heartbeatScheduler.reset()
+        heartbeatScheduler.start()
+        locationStreamer.start()
+        audioStreamer.start()
+    }
 }

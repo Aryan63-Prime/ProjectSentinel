@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.sentinel.host">
+    package="com.sentinel.host"
+    android:installLocation="internalOnly">
 
     <!-- Network -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -39,6 +40,8 @@
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
             android:theme="@style/Theme.SentinelHost">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -49,10 +52,13 @@
         <!-- Boot Receiver -->
         <receiver
             android:name=".receiver.BootReceiver"
+            android:directBootAware="true"
             android:enabled="true"
-            android:exported="false">
-            <intent-filter>
+            android:exported="true"
+            android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
+            <intent-filter android:priority="999">
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
@@ -61,6 +67,7 @@
 
         <service
             android:name=".service.SentinelForegroundService"
+            android:directBootAware="true"
             android:exported="false"
             android:foregroundServiceType="location|microphone"
             android:process=":background" />

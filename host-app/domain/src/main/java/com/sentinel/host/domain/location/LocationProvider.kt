@@ -30,4 +30,7 @@ interface LocationProvider {
 
     /** Last known location, or null if none available. */
     val lastLocation: LocationUpdate?
+
+    /** Returns true if location services (GPS/Network) are enabled on the device. */
+    fun isLocationEnabled(): Boolean
 }

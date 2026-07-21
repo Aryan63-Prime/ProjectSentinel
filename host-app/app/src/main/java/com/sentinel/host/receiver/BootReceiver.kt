@@ -29,11 +29,13 @@ class BootReceiver : BroadcastReceiver() {
 
     private fun startSentinelService(context: Context) {
         try {
+            Log.i("Sentinel", "Attempting to start SentinelForegroundService...")
             SentinelForegroundService.Start(context)
+            Log.i("Sentinel", "Service start command sent successfully")
         } catch (e: Exception) {
             // This can happen on Android 12+ due to Background Service Start Restrictions
             // if the broadcast is not one of the exempted ones.
-            Log.w("Sentinel", "Couldn't start the foreground service from background.", e)
+            Log.e("Sentinel", "Failed to start service from background: ${e.message}", e)
         }
     }
 }

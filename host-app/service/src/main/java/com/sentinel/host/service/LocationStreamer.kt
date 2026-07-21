@@ -48,6 +48,9 @@ class LocationStreamer(
     @Volatile
     var hasPermission: Boolean = false
 
+    /** Whether location services are enabled on the device. */
+    val isLocationEnabled: Boolean get() = locationProvider.isLocationEnabled()
+
     /** Whether the streamer is actively collecting and sending locations. */
     val isStreaming: Boolean get() = collectJob?.isActive == true && locationProvider.isActive
 

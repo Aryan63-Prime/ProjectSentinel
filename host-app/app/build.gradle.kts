@@ -57,6 +57,9 @@ dependencies {
     implementation(project(":service"))
     implementation(project(":shared"))
 
+    // Play Services Location
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+
     // Compose
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
