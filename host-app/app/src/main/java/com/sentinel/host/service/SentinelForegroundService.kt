@@ -110,7 +110,7 @@ class SentinelForegroundService : Service() {
             }
             result.onFailure { error ->
                 Log.e(TAG, "Connection failed: ${error.message}")
-                updateNotification("Action needed!")
+                updateNotification("Action needed !")
             }
         }
 
