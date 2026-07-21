@@ -79,6 +79,15 @@ func (g *Gateway) SessionSnapshotByDeviceID(deviceID string) (SessionSnapshot, b
 	return g.manager.SnapshotByDeviceID(deviceID)
 }
 
+// GetConnectionIDByDeviceID returns the connection ID associated with a device ID.
+func (g *Gateway) GetConnectionIDByDeviceID(deviceID string) (string, bool) {
+	snapshot, ok := g.manager.SnapshotByDeviceID(deviceID)
+	if !ok {
+		return "", false
+	}
+	return snapshot.ConnectionID, true
+}
+
 func (g *Gateway) registerRoutes() {
 
 	g.mux.HandleFunc("/health", g.health)
@@ -260,6 +269,32 @@ func (g *Gateway) ForwardBinary(connectionID string, data []byte) error {
 	}:
 	default:
 		g.logger.Debug("audio frame dropped, buffer full",
+			zap.String("connection_id", connectionID),
+		)
+	}
+
+	return nil
+}
+
+// ForwardText sends a text frame to a connected client by connection ID.
+func (g *Gateway) ForwardText(connectionID string, data []byte) error {
+	session, ok := g.manager.Get(connectionID)
+	if !ok {
+		return nil
+	}
+
+	client := session.client
+	if client == nil {
+		return nil
+	}
+
+	select {
+	case client.Send <- outgoingMessage{
+		MessageType: websocket.TextMessage,
+		Payload:     data,
+	}:
+	default:
+		g.logger.Warn("text message dropped, buffer full",
 			zap.String("connection_id", connectionID),
 		)
 	}

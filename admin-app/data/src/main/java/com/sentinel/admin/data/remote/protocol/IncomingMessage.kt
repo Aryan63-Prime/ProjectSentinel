@@ -39,6 +39,23 @@ sealed interface IncomingMessage {
         val updateData: DeviceUpdateDataJson
     ) : IncomingMessage
 
+    // File events
+    data class FilesListRes(
+        override val type: String,
+        override val sequence: Long,
+        val path: String,
+        val items: List<FileItemJson>
+    ) : IncomingMessage
+
+    data class FileDownloadRes(
+        override val type: String,
+        override val sequence: Long,
+        val path: String,
+        val success: Boolean,
+        val size: Long,
+        val error: String?
+    ) : IncomingMessage
+
     data class Unknown(
         override val type: String,
         override val sequence: Long

@@ -37,6 +37,33 @@ sealed interface IncomingMessage {
         val message: String
     ) : IncomingMessage
 
+    data class FilesListReq(
+        override val type: String,
+        override val sequence: Long,
+        val path: String
+    ) : IncomingMessage
+
+    data class FileDownloadReq(
+        override val type: String,
+        override val sequence: Long,
+        val path: String,
+        val offset: Long,
+        val nonce: String
+    ) : IncomingMessage
+
+    data class FileChunkAck(
+        override val type: String,
+        override val sequence: Long,
+        val path: String,
+        val ackSequence: Long
+    ) : IncomingMessage
+
+    data class FileStopReq(
+        override val type: String,
+        override val sequence: Long,
+        val path: String
+    ) : IncomingMessage
+
     data class Unknown(
         override val type: String,
         override val sequence: Long

@@ -12,6 +12,7 @@ import com.sentinel.host.data.remote.websocket.WebSocketDataSource
 import com.sentinel.host.data.repository.AuthRepositoryImpl
 import com.sentinel.host.data.repository.ConnectionRepositoryImpl
 import com.sentinel.host.data.repository.DeviceRepositoryImpl
+import com.sentinel.host.data.repository.FileRepositoryImpl
 import com.sentinel.host.data.repository.LocationRepositoryImpl
 import com.sentinel.host.data.session.SessionManagerImpl
 import com.sentinel.host.domain.audio.AudioRecorder
@@ -21,6 +22,7 @@ import com.sentinel.host.domain.network.NetworkObserver
 import com.sentinel.host.domain.repository.AuthRepository
 import com.sentinel.host.domain.repository.ConnectionRepository
 import com.sentinel.host.domain.repository.DeviceRepository
+import com.sentinel.host.domain.repository.FileRepository
 import com.sentinel.host.domain.repository.LocationRepository
 import com.sentinel.host.domain.session.SessionManager
 import com.sentinel.host.domain.usecase.ConnectUseCase
@@ -165,6 +167,12 @@ object NetworkModule {
         sequenceGenerator: SequenceGenerator
     ): LocationRepository {
         return LocationRepositoryImpl(connectionRepository, messageSerializer, sequenceGenerator)
+    }
+
+    @Provides
+    @Singleton
+    fun provideFileRepository(): FileRepository {
+        return FileRepositoryImpl()
     }
 
     @Provides

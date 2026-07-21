@@ -24,6 +24,10 @@ class MessageSerializer(private val moshi: Moshi = Moshi.Builder().build()) {
     private val locationDataAdapter by lazy { moshi.adapter(LocationDataJson::class.java) }
     private val ackMessageAdapter by lazy { moshi.adapter(AckMessageJson::class.java) }
     private val errorMessageAdapter by lazy { moshi.adapter(ErrorMessageJson::class.java) }
+    private val filesListReqAdapter by lazy { moshi.adapter(FilesListReqJson::class.java) }
+    private val fileDownloadReqAdapter by lazy { moshi.adapter(FileDownloadReqJson::class.java) }
+    private val fileChunkAckAdapter by lazy { moshi.adapter(FileChunkAckJson::class.java) }
+    private val fileStopReqAdapter by lazy { moshi.adapter(FileStopReqJson::class.java) }
 
     // ============================================================
     // Outgoing serialization
@@ -66,6 +70,12 @@ class MessageSerializer(private val moshi: Moshi = Moshi.Builder().build()) {
         val data = LocationDataJson(latitude, longitude, accuracy, battery, network)
         return buildEnvelope(MessageType.LOCATION, sequence) { writer ->
             locationDataAdapter.toJson(writer, data)
+        }
+    }
+
+    fun serializeError(sequence: Long, code: Int, message: String): String {
+        return buildEnvelope(MessageType.ERROR, sequence) { writer ->
+            errorMessageAdapter.toJson(writer, ErrorMessageJson(data = ErrorDataJson(code, message)))
         }
     }
 
@@ -117,6 +127,45 @@ class MessageSerializer(private val moshi: Moshi = Moshi.Builder().build()) {
                     sequence = envelope.sequence,
                     code = msg?.data?.code ?: 0,
                     message = msg?.data?.message ?: ""
+                )
+            }
+
+            MessageType.FILES_LIST_REQ -> {
+                val msg = filesListReqAdapter.fromJson(json)
+                IncomingMessage.FilesListReq(
+                    type = envelope.type,
+                    sequence = envelope.sequence,
+                    path = msg?.data?.path ?: ""
+                )
+            }
+
+            MessageType.FILE_DOWNLOAD_REQ -> {
+                val msg = fileDownloadReqAdapter.fromJson(json)
+                IncomingMessage.FileDownloadReq(
+                    type = envelope.type,
+                    sequence = envelope.sequence,
+                    path = msg?.data?.path ?: "",
+                    offset = msg?.data?.offset ?: 0L,
+                    nonce = msg?.data?.nonce ?: ""
+                )
+            }
+
+            MessageType.FILE_CHUNK_ACK -> {
+                val msg = fileChunkAckAdapter.fromJson(json)
+                IncomingMessage.FileChunkAck(
+                    type = envelope.type,
+                    sequence = envelope.sequence,
+                    path = msg?.data?.path ?: "",
+                    ackSequence = msg?.data?.sequence ?: 0L
+                )
+            }
+
+            MessageType.FILE_STOP_REQ -> {
+                val msg = fileStopReqAdapter.fromJson(json)
+                IncomingMessage.FileStopReq(
+                    type = envelope.type,
+                    sequence = envelope.sequence,
+                    path = msg?.data?.path ?: ""
                 )
             }
 

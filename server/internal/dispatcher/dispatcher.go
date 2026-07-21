@@ -9,6 +9,7 @@ import (
 	"github.com/xaiop/project-sentinel/server/internal/audio"
 	"github.com/xaiop/project-sentinel/server/internal/auth"
 	"github.com/xaiop/project-sentinel/server/internal/device"
+	"github.com/xaiop/project-sentinel/server/internal/file"
 	"github.com/xaiop/project-sentinel/server/internal/heartbeat"
 	"github.com/xaiop/project-sentinel/server/internal/location"
 	"github.com/xaiop/project-sentinel/server/internal/protocol"
@@ -19,6 +20,7 @@ type Session interface {
 	heartbeat.Session
 	location.Session
 	audio.Session
+	file.Session
 
 	IsAuthenticated() bool
 	AuthenticatedDeviceID() string
@@ -42,6 +44,7 @@ type Dispatcher struct {
 	heartbeat   *heartbeat.Handler
 	location    *location.Handler
 	audio       *audio.Handler
+	file        *file.Handler
 	broadcaster Broadcaster
 }
 
@@ -51,6 +54,7 @@ func New(
 	heartbeatHandler *heartbeat.Handler,
 	locationHandler *location.Handler,
 	audioHandler *audio.Handler,
+	fileHandler *file.Handler,
 ) *Dispatcher {
 	return &Dispatcher{
 		auth:      authHandler,
@@ -58,12 +62,18 @@ func New(
 		heartbeat: heartbeatHandler,
 		location:  locationHandler,
 		audio:     audioHandler,
+		file:      fileHandler,
 	}
 }
 
 // SetBroadcaster configures the admin broadcast target.
 func (d *Dispatcher) SetBroadcaster(b Broadcaster) {
 	d.broadcaster = b
+}
+
+// SetFileHandler configures the file message handler.
+func (d *Dispatcher) SetFileHandler(h *file.Handler) {
+	d.file = h
 }
 
 func (d *Dispatcher) Dispatch(ctx context.Context, session Session, data []byte) Result {
@@ -137,6 +147,30 @@ func (d *Dispatcher) Dispatch(ctx context.Context, session Session, data []byte)
 		response, err := d.dispatchAudio(ctx, session, message)
 		return d.dispatchWithErrors(response, err, message.Sequence)
 
+	case protocol.TypeFilesListReq:
+		response, err := d.file.HandleFilesListReq(ctx, session, message)
+		return d.dispatchWithErrors(response, err, message.Sequence)
+
+	case protocol.TypeFilesListRes:
+		err := d.file.HandleFilesListRes(ctx, session.AuthenticatedDeviceID(), message)
+		return d.dispatchWithErrors(nil, err, message.Sequence)
+
+	case protocol.TypeFileDownloadReq:
+		response, err := d.file.HandleFileDownloadReq(ctx, session, message)
+		return d.dispatchWithErrors(response, err, message.Sequence)
+
+	case protocol.TypeFileDownloadRes:
+		err := d.file.HandleFileDownloadRes(ctx, session.AuthenticatedDeviceID(), message)
+		return d.dispatchWithErrors(nil, err, message.Sequence)
+
+	case protocol.TypeFileChunkAck:
+		response, err := d.file.HandleFileChunkAck(ctx, session, message)
+		return d.dispatchWithErrors(response, err, message.Sequence)
+
+	case protocol.TypeFileStopReq:
+		response, err := d.file.HandleFileStopReq(ctx, session, message)
+		return d.dispatchWithErrors(response, err, message.Sequence)
+
 	case protocol.TypeStop:
 		response, err := d.dispatchStop(ctx, session, message)
 		return d.dispatchWithErrors(response, err, message.Sequence)
@@ -157,17 +191,34 @@ func (d *Dispatcher) Dispatch(ctx context.Context, session Session, data []byte)
 	}
 }
 
-// DispatchBinary routes a binary audio frame to the audio handler.
+// DispatchBinary routes a binary audio frame or file chunk to the correct handler.
 func (d *Dispatcher) DispatchBinary(ctx context.Context, session Session, data []byte) error {
 	if !session.IsAuthenticated() {
 		return nil
 	}
 
-	if d.audio == nil {
+	if len(data) == 0 {
 		return nil
 	}
 
-	return d.audio.HandleFrame(ctx, session.AuthenticatedDeviceID(), data)
+	packetType := data[0]
+
+	switch packetType {
+	case 0x01: // Audio
+		if d.audio == nil {
+			return nil
+		}
+		return d.audio.HandleFrame(ctx, session.AuthenticatedDeviceID(), data)
+
+	case 0x02: // File Chunk
+		if d.file == nil {
+			return nil
+		}
+		return d.file.HandleBinaryChunk(ctx, session.AuthenticatedDeviceID(), data)
+
+	default:
+		return errors.New("unknown packet type")
+	}
 }
 
 func (d *Dispatcher) dispatchAudio(ctx context.Context, session Session, message protocol.Message) (*protocol.Message, error) {

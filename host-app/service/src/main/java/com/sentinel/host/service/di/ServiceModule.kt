@@ -14,10 +14,12 @@ import com.sentinel.host.domain.network.NetworkObserver
 import com.sentinel.host.domain.repository.AuthRepository
 import com.sentinel.host.domain.repository.ConnectionRepository
 import com.sentinel.host.domain.repository.DeviceRepository
+import com.sentinel.host.domain.repository.FileRepository
 import com.sentinel.host.domain.repository.LocationRepository
 import com.sentinel.host.domain.session.SessionManager
 import com.sentinel.host.service.AudioStreamer
 import com.sentinel.host.service.ConnectionSupervisor
+import com.sentinel.host.service.FileStreamer
 import com.sentinel.host.service.HeartbeatScheduler
 import com.sentinel.host.service.LocationStreamer
 import dagger.Module
@@ -86,6 +88,17 @@ object ServiceModule {
 
     @Provides
     @Singleton
+    fun provideFileStreamer(
+        fileRepository: FileRepository,
+        connectionRepository: ConnectionRepository,
+        messageSerializer: MessageSerializer,
+        @ApplicationScope scope: CoroutineScope
+    ): FileStreamer {
+        return FileStreamer(fileRepository, connectionRepository, messageSerializer, scope)
+    }
+
+    @Provides
+    @Singleton
     fun provideConnectionSupervisor(
         connectionRepository: ConnectionRepository,
         sessionManager: SessionManager,
@@ -96,12 +109,13 @@ object ServiceModule {
         heartbeatScheduler: HeartbeatScheduler,
         locationStreamer: LocationStreamer,
         audioStreamer: AudioStreamer,
+        fileStreamer: FileStreamer,
         @ApplicationScope scope: CoroutineScope
     ): ConnectionSupervisor {
         return ConnectionSupervisor(
             connectionRepository, sessionManager, authRepository,
             deviceRepository, networkObserver, reconnectPolicy,
-            heartbeatScheduler, locationStreamer, audioStreamer, scope
+            heartbeatScheduler, locationStreamer, audioStreamer, fileStreamer, scope
         )
     }
 }

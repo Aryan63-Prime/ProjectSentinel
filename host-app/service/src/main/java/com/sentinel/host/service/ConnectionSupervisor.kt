@@ -69,6 +69,7 @@ class ConnectionSupervisor(
     private val heartbeatScheduler: HeartbeatScheduler,
     private val locationStreamer: LocationStreamer,
     private val audioStreamer: AudioStreamer,
+    private val fileStreamer: FileStreamer,
     private val scope: CoroutineScope,
     private val connectTimeoutMs: Long = 15_000L
 ) {
@@ -157,6 +158,26 @@ class ConnectionSupervisor(
             is ConnectionEvent.Registered -> {
                 onRegistered()
                 ConnectionState.Ready
+            }
+
+            is ConnectionEvent.FilesListReq -> {
+                fileStreamer.handleFilesListReq(event.path, event.sequence)
+                previousState
+            }
+
+            is ConnectionEvent.FileDownloadReq -> {
+                fileStreamer.handleFileDownloadReq(event.path, event.offset, event.nonce, event.sequence)
+                previousState
+            }
+
+            is ConnectionEvent.FileChunkAck -> {
+                fileStreamer.handleChunkAck(event.ackSequence)
+                previousState
+            }
+
+            is ConnectionEvent.FileStopReq -> {
+                fileStreamer.handleFileStopReq(event.path)
+                previousState
             }
 
             is ConnectionEvent.HeartbeatAck -> {

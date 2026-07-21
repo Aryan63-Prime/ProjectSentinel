@@ -33,6 +33,17 @@ sealed interface ConnectionEvent {
         override fun hashCode(): Int = data.contentHashCode()
     }
 
+    /** Binary file chunk received from server. */
+    data class FileChunkReceived(val data: ByteArray) : ConnectionEvent {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is FileChunkReceived) return false
+            return data.contentEquals(other.data)
+        }
+
+        override fun hashCode(): Int = data.contentHashCode()
+    }
+
     // Reconnection events
     data class Reconnecting(val attempt: Int, val delayMs: Long) : ConnectionEvent
     data class ReconnectFailed(val attempt: Int, val reason: String) : ConnectionEvent
@@ -40,4 +51,10 @@ sealed interface ConnectionEvent {
 
     /** Server pushed a DEVICE_UPDATE message with device state changes. */
     data class DeviceUpdateReceived(val rawJson: String) : ConnectionEvent
+
+    /** File list response received. */
+    data class FilesListReceived(val rawJson: String) : ConnectionEvent
+
+    /** File download response received. */
+    data class FileDownloadReceived(val rawJson: String) : ConnectionEvent
 }

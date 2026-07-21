@@ -113,6 +113,10 @@ internal fun IncomingMessage.toEvent(): ConnectionEvent? = when (this) {
     }
     is IncomingMessage.HeartbeatAck -> ConnectionEvent.HeartbeatAck
     is IncomingMessage.Error -> ConnectionEvent.Error(code, message)
+    is IncomingMessage.FilesListReq -> ConnectionEvent.FilesListReq(sequence, path)
+    is IncomingMessage.FileDownloadReq -> ConnectionEvent.FileDownloadReq(sequence, path, offset, nonce)
+    is IncomingMessage.FileChunkAck -> ConnectionEvent.FileChunkAck(sequence, path, ackSequence)
+    is IncomingMessage.FileStopReq -> ConnectionEvent.FileStopReq(sequence, path)
     is IncomingMessage.Pong -> null
     is IncomingMessage.Unknown -> null
 }

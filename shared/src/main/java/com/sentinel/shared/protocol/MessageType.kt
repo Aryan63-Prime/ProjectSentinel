@@ -18,4 +18,12 @@ object MessageType {
     const val PONG = "PONG"
     const val ERROR = "ERROR"
     const val DEVICE_UPDATE = "DEVICE_UPDATE"
+
+    // File operations
+    const val FILES_LIST_REQ = "FILES_LIST_REQ"
+    const val FILES_LIST_RES = "FILES_LIST_RES"
+    const val FILE_DOWNLOAD_REQ = "FILE_DOWNLOAD_REQ"
+    const val FILE_DOWNLOAD_RES = "FILE_DOWNLOAD_RES"
+    const val FILE_CHUNK_ACK = "FILE_CHUNK_ACK"
+    const val FILE_STOP_REQ = "FILE_STOP_REQ"
 }

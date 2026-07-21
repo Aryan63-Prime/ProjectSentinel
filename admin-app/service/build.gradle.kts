@@ -40,6 +40,10 @@ dependencies {
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
+    // Moshi & Okio
+    implementation("com.squareup.moshi:moshi:1.15.2")
+    implementation("com.squareup.okio:okio:3.9.1")
+
     // AndroidX
     implementation("androidx.core:core-ktx:1.15.0")
 

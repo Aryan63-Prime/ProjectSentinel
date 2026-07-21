@@ -14,11 +14,16 @@ import com.sentinel.admin.domain.time.SystemClock
 import com.sentinel.admin.service.AdminSupervisor
 import com.sentinel.admin.service.AudioMonitor
 import com.sentinel.admin.service.HeartbeatScheduler
+import com.sentinel.admin.service.files.FileDownloadManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import android.content.Context
+import android.os.Environment
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
+import java.io.File
 import javax.inject.Singleton
 
 /**
@@ -75,6 +80,26 @@ object ServiceModule {
             decoder = decoder,
             audioOutput = audioOutput,
             scope = scope
+        )
+    }
+
+    @Provides
+    @Singleton
+    fun provideFileDownloadManager(
+        connectionRepository: ConnectionRepository,
+        messageSerializer: MessageSerializer,
+        scope: CoroutineScope,
+        @ApplicationContext context: Context
+    ): FileDownloadManager {
+        val downloadDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            ?: File(context.filesDir, "downloads")
+        if (!downloadDir.exists()) downloadDir.mkdirs()
+        
+        return FileDownloadManager(
+            connectionRepository = connectionRepository,
+            messageSerializer = messageSerializer,
+            scope = scope,
+            downloadDir = downloadDir
         )
     }
 

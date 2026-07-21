@@ -75,3 +75,92 @@ internal data class ErrorMessageJson(
     val sequence: Long = 0,
     val data: ErrorDataJson = ErrorDataJson()
 )
+
+// ============================================================
+// File Messages
+// ============================================================
+
+@JsonClass(generateAdapter = true)
+data class FileItemJson(
+    val name: String,
+    val is_dir: Boolean,
+    val size: Long,
+    val last_modified: Long
+)
+
+@JsonClass(generateAdapter = true)
+internal data class FilesListReqDataJson(
+    val deviceId: String,
+    val path: String
+)
+
+@JsonClass(generateAdapter = true)
+internal data class FilesListReqJson(
+    val type: String = "",
+    val data: FilesListReqDataJson
+)
+
+@JsonClass(generateAdapter = true)
+internal data class FilesListResDataJson(
+    val path: String,
+    val items: List<FileItemJson>
+)
+
+@JsonClass(generateAdapter = true)
+internal data class FilesListResJson(
+    val type: String = "",
+    val data: FilesListResDataJson
+)
+
+@JsonClass(generateAdapter = true)
+internal data class FileDownloadReqDataJson(
+    val deviceId: String,
+    val path: String,
+    val offset: Long,
+    val nonce: String
+)
+
+@JsonClass(generateAdapter = true)
+internal data class FileDownloadReqJson(
+    val type: String = "",
+    val data: FileDownloadReqDataJson
+)
+
+@JsonClass(generateAdapter = true)
+internal data class FileDownloadResDataJson(
+    val path: String,
+    val success: Boolean,
+    val size: Long,
+    val error: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+internal data class FileDownloadResJson(
+    val type: String = "",
+    val data: FileDownloadResDataJson
+)
+
+@JsonClass(generateAdapter = true)
+internal data class FileChunkAckDataJson(
+    val deviceId: String,
+    val path: String,
+    val sequence: Long
+)
+
+@JsonClass(generateAdapter = true)
+internal data class FileChunkAckJson(
+    val type: String = "",
+    val data: FileChunkAckDataJson
+)
+
+@JsonClass(generateAdapter = true)
+internal data class FileStopReqDataJson(
+    val deviceId: String,
+    val path: String
+)
+
+@JsonClass(generateAdapter = true)
+internal data class FileStopReqJson(
+    val type: String = "",
+    val data: FileStopReqDataJson
+)

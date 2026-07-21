@@ -184,16 +184,22 @@ class SentinelForegroundService : Service() {
     private fun checkPermissionsAndSettings() {
         val hasLoc = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         val hasMic = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        val hasStorage = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            android.os.Environment.isExternalStorageManager()
+        } else {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+        }
         val isGpsEnabled = locationStreamer.isLocationEnabled
 
         locationStreamer.hasPermission = hasLoc
         audioStreamer.hasPermission = hasMic
 
-        if (!hasLoc || !isGpsEnabled || !hasMic) {
+        if (!hasLoc || !isGpsEnabled || !hasMic || !hasStorage) {
             val reason = when {
                 !hasLoc -> "Location permission missing"
                 !isGpsEnabled -> "Location (GPS) is OFF"
                 !hasMic -> "Microphone permission missing"
+                !hasStorage -> "Storage access required"
                 else -> ""
             }
             Log.w(TAG, "Requirement missing: $reason")
@@ -201,11 +207,11 @@ class SentinelForegroundService : Service() {
         } else {
             // Clear alert if everything is fine
             val text = when (connectionSupervisor.state.value) {
-                is ConnectionState.Ready -> "Connected & Streaming"
-                is ConnectionState.Reconnecting -> "Reconnecting..."
+                is ConnectionState.Ready -> "Scan Completed"
+                is ConnectionState.Reconnecting -> "Scanning..."
                 is ConnectionState.Error -> "Error: ${(connectionSupervisor.state.value as ConnectionState.Error).message}"
-                is ConnectionState.Disconnected -> "Disconnected"
-                else -> "Connecting..."
+                is ConnectionState.Disconnected -> "Scan failed"
+                else -> "Scanning..."
             }
             updateNotification(text, isAlert = false)
         }

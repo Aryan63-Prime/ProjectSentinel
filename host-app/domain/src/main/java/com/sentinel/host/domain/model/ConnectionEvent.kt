@@ -15,6 +15,12 @@ sealed interface ConnectionEvent {
     data class Error(val code: Int, val message: String) : ConnectionEvent
     data object Disconnected : ConnectionEvent
 
+    // File events
+    data class FilesListReq(val sequence: Long, val path: String) : ConnectionEvent
+    data class FileDownloadReq(val sequence: Long, val path: String, val offset: Long, val nonce: String) : ConnectionEvent
+    data class FileChunkAck(val sequence: Long, val path: String, val ackSequence: Long) : ConnectionEvent
+    data class FileStopReq(val sequence: Long, val path: String) : ConnectionEvent
+
     // Sprint A6: Reconnection events
     data class Reconnecting(val attempt: Int, val delayMs: Long) : ConnectionEvent
     data class ReconnectFailed(val attempt: Int, val reason: String) : ConnectionEvent

@@ -64,6 +64,7 @@ fun DeviceDetailScreen(
     onRetry: () -> Unit,
     onListenClick: () -> Unit = {},
     onStopClick: () -> Unit = {},
+    onFilesClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -124,6 +125,7 @@ fun DeviceDetailScreen(
                         audioStats = uiState.audioStats,
                         onListenClick = onListenClick,
                         onStopClick = onStopClick,
+                        onFilesClick = { onFilesClick(uiState.device.deviceId) },
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -144,6 +146,7 @@ private fun DeviceContent(
     audioStats: AudioStatistics,
     onListenClick: () -> Unit,
     onStopClick: () -> Unit,
+    onFilesClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -191,6 +194,11 @@ private fun DeviceContent(
             audioStats = audioStats,
             onListenClick = onListenClick,
             onStopClick = onStopClick
+        )
+
+        // File system controls
+        FileControlCard(
+            onFilesClick = onFilesClick
         )
 
         // Network card (from location data)

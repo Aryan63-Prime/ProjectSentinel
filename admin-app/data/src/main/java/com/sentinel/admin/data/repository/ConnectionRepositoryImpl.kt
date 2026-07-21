@@ -58,10 +58,15 @@ class ConnectionRepositoryImpl(
             }
             .launchIn(scope)
 
-        // Observe incoming binary → emit as AudioFrameReceived
+        // Observe incoming binary -> check type -> emit event
         webSocketDataSource.binaryMessages
             .onEach { data ->
-                _events.emit(ConnectionEvent.AudioFrameReceived(data))
+                if (data.isNotEmpty()) {
+                    when (data[0]) {
+                        0x01.toByte() -> _events.emit(ConnectionEvent.AudioFrameReceived(data))
+                        0x02.toByte() -> _events.emit(ConnectionEvent.FileChunkReceived(data))
+                    }
+                }
             }
             .launchIn(scope)
     }
@@ -117,6 +122,8 @@ fun IncomingMessage.toEvent(rawJson: String = ""): ConnectionEvent? = when (this
     is IncomingMessage.HeartbeatAck -> ConnectionEvent.HeartbeatAck
     is IncomingMessage.Error -> ConnectionEvent.ServerError(code, message)
     is IncomingMessage.DeviceUpdate -> ConnectionEvent.DeviceUpdateReceived(rawJson)
+    is IncomingMessage.FilesListRes -> ConnectionEvent.FilesListReceived(rawJson)
+    is IncomingMessage.FileDownloadRes -> ConnectionEvent.FileDownloadReceived(rawJson)
     is IncomingMessage.Pong -> null
     is IncomingMessage.Unknown -> null
 }

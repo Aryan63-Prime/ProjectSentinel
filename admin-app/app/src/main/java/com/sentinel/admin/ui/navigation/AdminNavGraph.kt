@@ -18,6 +18,7 @@ import com.sentinel.admin.ui.dashboard.DashboardScreen
 import com.sentinel.admin.ui.dashboard.DashboardViewModel
 import com.sentinel.admin.ui.detail.DeviceDetailScreen
 import com.sentinel.admin.ui.detail.DeviceDetailViewModel
+import com.sentinel.admin.ui.files.FileBrowserScreen
 import com.sentinel.admin.ui.login.LoginScreen
 import com.sentinel.admin.ui.login.LoginViewModel
 
@@ -28,8 +29,10 @@ object AdminRoutes {
     const val LOGIN = "login"
     const val DASHBOARD = "dashboard"
     const val DEVICE_DETAIL = "device/{deviceId}"
+    const val FILE_BROWSER = "device/{deviceId}/files"
 
     fun deviceDetail(deviceId: String) = "device/$deviceId"
+    fun fileBrowser(deviceId: String) = "device/$deviceId/files"
 }
 
 /**
@@ -95,7 +98,18 @@ fun AdminNavGraph() {
                 onRefresh = viewModel::refresh,
                 onRetry = viewModel::retry,
                 onListenClick = viewModel::onListenClick,
-                onStopClick = viewModel::onStopClick
+                onStopClick = viewModel::onStopClick,
+                onFilesClick = { deviceId -> 
+                    navController.navigate(AdminRoutes.fileBrowser(deviceId))
+                }
+            )
+        }
+
+        composable(AdminRoutes.FILE_BROWSER) { backStackEntry ->
+            val deviceId = backStackEntry.arguments?.getString("deviceId") ?: ""
+            FileBrowserScreen(
+                deviceId = deviceId,
+                onBack = { navController.popBackStack() }
             )
         }
     }

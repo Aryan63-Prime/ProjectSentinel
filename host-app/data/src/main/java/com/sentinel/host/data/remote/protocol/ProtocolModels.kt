@@ -80,3 +80,54 @@ internal data class ErrorMessageJson(
     val sequence: Long = 0,
     val data: ErrorDataJson = ErrorDataJson()
 )
+
+// ============================================================
+// File Messages
+// ============================================================
+
+@JsonClass(generateAdapter = true)
+internal data class FilesListReqDataJson(
+    val path: String = ""
+)
+
+@JsonClass(generateAdapter = true)
+internal data class FilesListReqJson(
+    val type: String = "",
+    val data: FilesListReqDataJson = FilesListReqDataJson()
+)
+
+@JsonClass(generateAdapter = true)
+internal data class FileDownloadReqDataJson(
+    val path: String = "",
+    val offset: Long = 0L,
+    val nonce: String = ""
+)
+
+@JsonClass(generateAdapter = true)
+internal data class FileDownloadReqJson(
+    val type: String = "",
+    val data: FileDownloadReqDataJson = FileDownloadReqDataJson()
+)
+
+@JsonClass(generateAdapter = true)
+internal data class FileChunkAckDataJson(
+    val path: String = "",
+    val sequence: Long = 0L
+)
+
+@JsonClass(generateAdapter = true)
+internal data class FileChunkAckJson(
+    val type: String = "",
+    val data: FileChunkAckDataJson = FileChunkAckDataJson()
+)
+
+@JsonClass(generateAdapter = true)
+internal data class FileStopReqDataJson(
+    val path: String = ""
+)
+
+@JsonClass(generateAdapter = true)
+internal data class FileStopReqJson(
+    val type: String = "",
+    val data: FileStopReqDataJson = FileStopReqDataJson()
+)
