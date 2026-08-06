@@ -91,14 +91,14 @@ class FileStreamer(
             val transferId = sequence.toInt()
 
             fileRepository.openFile(sanitizedPath, offset).collectIndexed { index, chunk ->
-                // Flow control: wait for ACK every CHUNK_WINDOW_SIZE chunks
-                if (index > 0 && index % CHUNK_WINDOW_SIZE == 0) {
-                    withTimeout(10000) {
+                sendBinaryChunk(transferId, index.toLong(), chunk)
+
+                // Flow control: wait for ACK after sending every CHUNK_WINDOW_SIZE chunks (e.g. index 4, 9, 14...)
+                if ((index + 1) % CHUNK_WINDOW_SIZE == 0) {
+                    withTimeout(15000) {
                         ackFlow.first { it >= index.toLong() }
                     }
                 }
-
-                sendBinaryChunk(transferId, index.toLong(), chunk)
             }
             
             Log.i(TAG, "Transfer complete for $sanitizedPath")

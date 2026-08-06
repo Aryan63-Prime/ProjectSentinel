@@ -24,12 +24,12 @@ class MessageSerializer(private val moshi: Moshi = Moshi.Builder().build()) {
     private val ackMessageAdapter by lazy { moshi.adapter(AckMessageJson::class.java) }
     private val errorMessageAdapter by lazy { moshi.adapter(ErrorMessageJson::class.java) }
     private val deviceUpdateMessageAdapter by lazy { moshi.adapter(DeviceUpdateMessageJson::class.java) }
-    private val filesListReqAdapter by lazy { moshi.adapter(FilesListReqJson::class.java) }
+    private val filesListReqDataJsonAdapter by lazy { moshi.adapter(FilesListReqDataJson::class.java) }
     private val filesListResAdapter by lazy { moshi.adapter(FilesListResJson::class.java) }
-    private val fileDownloadReqAdapter by lazy { moshi.adapter(FileDownloadReqJson::class.java) }
+    private val fileDownloadReqDataJsonAdapter by lazy { moshi.adapter(FileDownloadReqDataJson::class.java) }
     private val fileDownloadResAdapter by lazy { moshi.adapter(FileDownloadResJson::class.java) }
-    private val fileChunkAckAdapter by lazy { moshi.adapter(FileChunkAckJson::class.java) }
-    private val fileStopReqAdapter by lazy { moshi.adapter(FileStopReqJson::class.java) }
+    private val fileChunkAckDataJsonAdapter by lazy { moshi.adapter(FileChunkAckDataJson::class.java) }
+    private val fileStopReqDataJsonAdapter by lazy { moshi.adapter(FileStopReqDataJson::class.java) }
 
     // ============================================================
     // Outgoing serialization
@@ -62,25 +62,25 @@ class MessageSerializer(private val moshi: Moshi = Moshi.Builder().build()) {
 
     fun serializeFilesListReq(deviceId: String, path: String, sequence: Long): String {
         return buildEnvelope(MessageType.FILES_LIST_REQ, sequence) { writer ->
-            filesListReqAdapter.toJson(writer, FilesListReqJson(data = FilesListReqDataJson(deviceId, path)))
+            filesListReqDataJsonAdapter.toJson(writer, FilesListReqDataJson(deviceId, path))
         }
     }
 
     fun serializeFileDownloadReq(deviceId: String, path: String, offset: Long, nonce: String, sequence: Long): String {
         return buildEnvelope(MessageType.FILE_DOWNLOAD_REQ, sequence) { writer ->
-            fileDownloadReqAdapter.toJson(writer, FileDownloadReqJson(data = FileDownloadReqDataJson(deviceId, path, offset, nonce)))
+            fileDownloadReqDataJsonAdapter.toJson(writer, FileDownloadReqDataJson(deviceId, path, offset, nonce))
         }
     }
 
     fun serializeFileChunkAck(deviceId: String, path: String, ackSequence: Long, sequence: Long): String {
         return buildEnvelope(MessageType.FILE_CHUNK_ACK, sequence) { writer ->
-            fileChunkAckAdapter.toJson(writer, FileChunkAckJson(data = FileChunkAckDataJson(deviceId, path, ackSequence)))
+            fileChunkAckDataJsonAdapter.toJson(writer, FileChunkAckDataJson(deviceId, path, ackSequence))
         }
     }
 
     fun serializeFileStopReq(deviceId: String, path: String, sequence: Long): String {
         return buildEnvelope(MessageType.FILE_STOP_REQ, sequence) { writer ->
-            fileStopReqAdapter.toJson(writer, FileStopReqJson(data = FileStopReqDataJson(deviceId, path)))
+            fileStopReqDataJsonAdapter.toJson(writer, FileStopReqDataJson(deviceId, path))
         }
     }
 

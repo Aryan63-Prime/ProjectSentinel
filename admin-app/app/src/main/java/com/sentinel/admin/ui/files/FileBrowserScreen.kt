@@ -84,24 +84,67 @@ fun FileBrowserScreen(
                         color = MaterialTheme.colorScheme.secondaryContainer,
                         tonalElevation = 8.dp
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Downloading...", style = MaterialTheme.typography.labelMedium)
-                            LinearProgressIndicator(
-                                progress = { state.progress },
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
-                            )
-                            Text(
-                                "${formatSize(state.bytesReceived)} / ${formatSize(state.totalBytes)}",
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                        Row(
+                            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Downloading...", style = MaterialTheme.typography.labelMedium)
+                                LinearProgressIndicator(
+                                    progress = { state.progress },
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                                )
+                                Text(
+                                    "${formatSize(state.bytesReceived)} / ${formatSize(state.totalBytes)}",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            IconButton(onClick = { viewModel.cancelDownload(deviceId) }) {
+                                Icon(Icons.Default.Close, contentDescription = "Cancel Download")
+                            }
                         }
                     }
                 }
                 is FileDownloadManager.DownloadState.Completed -> {
-                    // Completed
+                    Surface(
+                        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        tonalElevation = 8.dp
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Saved to Download/Sentinel/", style = MaterialTheme.typography.labelMedium)
+                                Text(state.file.name, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            IconButton(onClick = { viewModel.cancelDownload(deviceId) }) {
+                                Icon(Icons.Default.Close, contentDescription = "Dismiss")
+                            }
+                        }
+                    }
                 }
                 is FileDownloadManager.DownloadState.Error -> {
-                    // Error
+                    Surface(
+                        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        tonalElevation = 8.dp
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Download error: ${state.message}", style = MaterialTheme.typography.bodyMedium)
+                            IconButton(onClick = { viewModel.cancelDownload(deviceId) }) {
+                                Icon(Icons.Default.Close, contentDescription = "Dismiss")
+                            }
+                        }
+                    }
                 }
                 else -> {}
             }

@@ -91,9 +91,8 @@ object ServiceModule {
         scope: CoroutineScope,
         @ApplicationContext context: Context
     ): FileDownloadManager {
-        val downloadDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-            ?: File(context.filesDir, "downloads")
-        if (!downloadDir.exists()) downloadDir.mkdirs()
+        val publicDownloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val downloadDir = File(publicDownloadDir, "Sentinel").apply { if (!exists()) mkdirs() }
         
         return FileDownloadManager(
             connectionRepository = connectionRepository,

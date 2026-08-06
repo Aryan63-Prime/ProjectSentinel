@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.ListAlt
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -24,7 +25,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -34,8 +34,9 @@ fun AirCommandCard(
     isOnline: Boolean,
     onSystemInfoClick: () -> Unit,
     onTriggerBeaconClick: () -> Unit,
-    onCapturePhotoClick: () -> Unit,
+    onCapturePhotoClick: (useFront: Boolean) -> Unit,
     onFetchLogsClick: () -> Unit,
+    onFetchNotifLogsClick: () -> Unit,
     onExecuteShellClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -43,20 +44,14 @@ fun AirCommandCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "Remote Air Commands Engine",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary
+                text = "Air Commands",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -73,7 +68,7 @@ fun AirCommandCard(
                 ) {
                     Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Diagnostics")
+                    Text("Sys Info")
                 }
 
                 OutlinedButton(
@@ -81,7 +76,7 @@ fun AirCommandCard(
                     enabled = isOnline,
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.tertiary
+                        contentColor = MaterialTheme.colorScheme.error
                     )
                 ) {
                     Icon(Icons.Default.FlashOn, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -92,43 +87,58 @@ fun AirCommandCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Row 2: Capture Photo & Fetch Logs
+            // Row 2: Rear Photo & Front Photo (Camera Switch)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 OutlinedButton(
-                    onClick = onCapturePhotoClick,
+                    onClick = { onCapturePhotoClick(false) },
                     enabled = isOnline,
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Photo")
+                    Text("Rear Cam")
                 }
 
                 OutlinedButton(
-                    onClick = onFetchLogsClick,
+                    onClick = { onCapturePhotoClick(true) },
                     enabled = isOnline,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Default.ListAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Logs")
+                    Text("Front Cam")
                 }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Row 3: Shell Exec
-            OutlinedButton(
-                onClick = onExecuteShellClick,
-                enabled = isOnline,
-                modifier = Modifier.fillMaxWidth()
+            // Row 3: Fetch Logs, Notif Logs & Shell Exec
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(Icons.Default.Terminal, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Execute Shell Command")
+                OutlinedButton(
+                    onClick = onFetchNotifLogsClick,
+                    enabled = isOnline,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.ListAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Notifs/Keys")
+                }
+
+                OutlinedButton(
+                    onClick = onExecuteShellClick,
+                    enabled = isOnline,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.Terminal, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Shell")
+                }
             }
         }
     }

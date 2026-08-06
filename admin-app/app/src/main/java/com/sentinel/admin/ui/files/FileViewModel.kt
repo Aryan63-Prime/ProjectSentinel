@@ -105,4 +105,10 @@ class FileViewModel @Inject constructor(
         val path = if (_currentPath.value.endsWith("/")) "${_currentPath.value}${item.name}" else "${_currentPath.value}/${item.name}"
         downloadManager.startDownload(deviceId, path)
     }
+
+    fun cancelDownload(deviceId: String) {
+        downloadManager.cancelDownload()
+        val req = messageSerializer.serializeFileStopReq(deviceId, _currentPath.value, System.currentTimeMillis())
+        connectionRepository.sendText(req)
+    }
 }

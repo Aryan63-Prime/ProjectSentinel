@@ -36,6 +36,8 @@ data class DeviceDetailUiState(
     val shellOutput: String = "",
     val showLogsDialog: Boolean = false,
     val logsList: List<String> = emptyList(),
+    val showNotifLogsDialog: Boolean = false,
+    val notifLogsJsonRaw: String = "",
     val commandStatusMessage: String? = null
 ) {
     /** True if device loaded successfully. */

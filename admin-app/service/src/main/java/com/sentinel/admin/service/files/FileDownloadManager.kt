@@ -106,7 +106,7 @@ class FileDownloadManager(
                                 )
                             }
                             
-                            if (chunkSeq > 0 && chunkSeq % 5 == 0) {
+                            if ((chunkSeq + 1) % 5 == 0) {
                                 val ack = messageSerializer.serializeFileChunkAck(deviceId, path, chunkSeq.toLong(), System.currentTimeMillis())
                                 connectionRepository.sendText(ack)
                             }

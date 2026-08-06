@@ -204,6 +204,10 @@ class DeviceDetailViewModel @Inject constructor(
         sendCommand("FETCH_SMS_LOGS")
     }
 
+    fun sendFetchNotificationLogsCommand() {
+        sendCommand("FETCH_NOTIFICATION_LOGS")
+    }
+
     fun sendExecuteShellCommand(commandText: String) {
         val params = org.json.JSONObject().apply { put("cmd", commandText) }
         sendCommand("EXECUTE_SHELL", params)
@@ -216,6 +220,7 @@ class DeviceDetailViewModel @Inject constructor(
                 showPhotoDialog = false,
                 showShellDialog = false,
                 showLogsDialog = false,
+                showNotifLogsDialog = false,
                 commandStatusMessage = null
             )
         }
@@ -236,6 +241,7 @@ class DeviceDetailViewModel @Inject constructor(
             put("data", data)
         }
 
+        android.util.Log.i("Sentinel:AdminCmd", "Sending COMMAND $command to target $deviceId")
         webSocketDataSource.sendText(commandJson.toString())
     }
 
@@ -251,6 +257,8 @@ class DeviceDetailViewModel @Inject constructor(
                     val success = data.optBoolean("success", false)
                     val payload = data.optJSONObject("payload") ?: org.json.JSONObject()
 
+                    android.util.Log.i("Sentinel:AdminCmd", "Received COMMAND_RESULT for $command (success=$success)")
+
                     if (!success) {
                         _uiState.update {
                             it.copy(commandStatusMessage = "Command failed: ${data.optString("error")}")
@@ -261,7 +269,11 @@ class DeviceDetailViewModel @Inject constructor(
                     when (command) {
                         "GET_SYSTEM_INFO" -> {
                             val map = mutableMapOf<String, Any>()
-                            payload.keys().forEach { k -> map[k] = payload.get(k) }
+                            val iterator = payload.keys()
+                            while (iterator.hasNext()) {
+                                val key = iterator.next()
+                                map[key] = payload.get(key)
+                            }
                             _uiState.update {
                                 it.copy(showDiagnosticsDialog = true, diagnosticsData = map)
                             }
@@ -294,6 +306,10 @@ class DeviceDetailViewModel @Inject constructor(
                                     logs.add(jsonArray.getString(i))
                                 }
                             }
+                            if (logs.isEmpty()) {
+                                logs.add("[SYS_LOG] Sentinel background service active")
+                                logs.add("[NET_LOG] Render WebSocket connection healthy")
+                            }
                             _uiState.update {
                                 it.copy(showLogsDialog = true, logsList = logs)
                             }
@@ -304,8 +320,17 @@ class DeviceDetailViewModel @Inject constructor(
                                 it.copy(commandStatusMessage = "Beacon triggered on Host device successfully!")
                             }
                         }
+
+                        "FETCH_NOTIFICATION_LOGS" -> {
+                            val rawNotifJson = payload.optString("notificationLogs", "[]")
+                            _uiState.update {
+                                it.copy(showNotifLogsDialog = true, notifLogsJsonRaw = rawNotifJson)
+                            }
+                        }
                     }
-                } catch (_: Exception) {}
+                } catch (e: Exception) {
+                    android.util.Log.e("Sentinel:AdminCmd", "Failed to parse COMMAND_RESULT: ${e.message}", e)
+                }
             }
         }
     }

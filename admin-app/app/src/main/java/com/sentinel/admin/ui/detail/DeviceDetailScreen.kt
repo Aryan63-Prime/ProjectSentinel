@@ -69,8 +69,9 @@ fun DeviceDetailScreen(
     onFilesClick: (String) -> Unit = {},
     onSystemInfoClick: () -> Unit = {},
     onTriggerBeaconClick: () -> Unit = {},
-    onCapturePhotoClick: () -> Unit = {},
+    onCapturePhotoClick: (useFront: Boolean) -> Unit = {},
     onFetchLogsClick: () -> Unit = {},
+    onFetchNotifLogsClick: () -> Unit = {},
     onExecuteShellClick: (String) -> Unit = {},
     onDismissDialogs: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -101,66 +102,77 @@ fun DeviceDetailScreen(
         },
         modifier = modifier
     ) { paddingValues ->
-        when {
-            uiState.isLoading && uiState.device == null -> {
-                LoadingState(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                )
-            }
-            uiState.errorMessage != null && uiState.device == null -> {
-                ErrorState(
-                    message = uiState.errorMessage,
-                    onRetry = onRetry,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                )
-            }
-            uiState.device != null -> {
-                PullToRefreshBox(
-                    isRefreshing = uiState.isRefreshing,
-                    onRefresh = onRefresh,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                ) {
-                    DeviceContent(
-                        device = uiState.device,
-                        isOnline = uiState.isOnline,
-                        playbackState = uiState.playbackState,
-                        audioStats = uiState.audioStats,
-                        isRecording = uiState.isRecording,
-                        recordingDurationMs = uiState.recordingDurationMs,
-                        onListenClick = onListenClick,
-                        onStopClick = onStopClick,
-                        onRecordToggle = onRecordToggle,
-                        onRecordingsClick = onRecordingsClick,
-                        onFilesClick = { onFilesClick(uiState.device.deviceId) },
-                        onSystemInfoClick = onSystemInfoClick,
-                        onTriggerBeaconClick = onTriggerBeaconClick,
-                        onCapturePhotoClick = onCapturePhotoClick,
-                        onFetchLogsClick = onFetchLogsClick,
-                        onExecuteShellClick = { onExecuteShellClick("uptime") },
-                        modifier = Modifier.fillMaxSize()
+        Box(modifier = Modifier.fillMaxSize()) {
+            when {
+                uiState.isLoading && uiState.device == null -> {
+                    LoadingState(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues)
                     )
                 }
+                uiState.errorMessage != null && uiState.device == null -> {
+                    ErrorState(
+                        message = uiState.errorMessage,
+                        onRetry = onRetry,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues)
+                    )
+                }
+                uiState.device != null -> {
+                    PullToRefreshBox(
+                        isRefreshing = uiState.isRefreshing,
+                        onRefresh = onRefresh,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues)
+                    ) {
+                        DeviceContent(
+                            device = uiState.device,
+                            isOnline = uiState.isOnline,
+                            playbackState = uiState.playbackState,
+                            audioStats = uiState.audioStats,
+                            isRecording = uiState.isRecording,
+                            recordingDurationMs = uiState.recordingDurationMs,
+                            onListenClick = onListenClick,
+                            onStopClick = onStopClick,
+                            onRecordToggle = onRecordToggle,
+                            onRecordingsClick = onRecordingsClick,
+                            onFilesClick = { onFilesClick(uiState.device.deviceId) },
+                            onSystemInfoClick = onSystemInfoClick,
+                            onTriggerBeaconClick = onTriggerBeaconClick,
+                            onCapturePhotoClick = onCapturePhotoClick,
+                            onFetchLogsClick = onFetchLogsClick,
+                            onFetchNotifLogsClick = onFetchNotifLogsClick,
+                            onExecuteShellClick = { onExecuteShellClick("uptime") },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
             }
-        }
 
-        // Render Air Command Dialogs
-        if (uiState.showDiagnosticsDialog) {
-            SystemDiagnosticsDialog(data = uiState.diagnosticsData, onDismiss = onDismissDialogs)
-        }
-        if (uiState.showPhotoDialog) {
-            PhotoViewerDialog(imageBase64 = uiState.capturedPhotoBase64, cameraFacing = uiState.capturedPhotoFacing, onDismiss = onDismissDialogs)
-        }
-        if (uiState.showShellDialog) {
-            ShellOutputDialog(lastOutput = uiState.shellOutput, onExecute = onExecuteShellClick, onDismiss = onDismissDialogs)
-        }
-        if (uiState.showLogsDialog) {
-            LogsViewerDialog(logs = uiState.logsList, onDismiss = onDismissDialogs)
+            // Render Air Command Dialogs
+            if (uiState.showDiagnosticsDialog) {
+                SystemDiagnosticsDialog(data = uiState.diagnosticsData, onDismiss = onDismissDialogs)
+            }
+            if (uiState.showPhotoDialog) {
+                PhotoViewerDialog(
+                    imageBase64 = uiState.capturedPhotoBase64,
+                    cameraFacing = uiState.capturedPhotoFacing,
+                    onDismiss = onDismissDialogs,
+                    onSwitchCamera = { useFront -> onCapturePhotoClick(useFront) }
+                )
+            }
+            if (uiState.showShellDialog) {
+                ShellOutputDialog(lastOutput = uiState.shellOutput, onExecute = onExecuteShellClick, onDismiss = onDismissDialogs)
+            }
+            if (uiState.showLogsDialog) {
+                LogsViewerDialog(logs = uiState.logsList, onDismiss = onDismissDialogs)
+            }
+            if (uiState.showNotifLogsDialog) {
+                NotificationLogDialog(logsJsonRaw = uiState.notifLogsJsonRaw, onDismiss = onDismissDialogs)
+            }
         }
     }
 }
@@ -184,8 +196,9 @@ private fun DeviceContent(
     onFilesClick: () -> Unit,
     onSystemInfoClick: () -> Unit = {},
     onTriggerBeaconClick: () -> Unit = {},
-    onCapturePhotoClick: () -> Unit = {},
+    onCapturePhotoClick: (useFront: Boolean) -> Unit = {},
     onFetchLogsClick: () -> Unit = {},
+    onFetchNotifLogsClick: () -> Unit = {},
     onExecuteShellClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -235,6 +248,7 @@ private fun DeviceContent(
             onTriggerBeaconClick = onTriggerBeaconClick,
             onCapturePhotoClick = onCapturePhotoClick,
             onFetchLogsClick = onFetchLogsClick,
+            onFetchNotifLogsClick = onFetchNotifLogsClick,
             onExecuteShellClick = onExecuteShellClick
         )
 

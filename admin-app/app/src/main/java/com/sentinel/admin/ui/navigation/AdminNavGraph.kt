@@ -111,8 +111,9 @@ fun AdminNavGraph() {
                 },
                 onSystemInfoClick = viewModel::sendSystemInfoCommand,
                 onTriggerBeaconClick = viewModel::sendTriggerBeaconCommand,
-                onCapturePhotoClick = { viewModel.sendCapturePhotoCommand(useFront = false) },
+                onCapturePhotoClick = { useFront -> viewModel.sendCapturePhotoCommand(useFront) },
                 onFetchLogsClick = viewModel::sendFetchLogsCommand,
+                onFetchNotifLogsClick = viewModel::sendFetchNotificationLogsCommand,
                 onExecuteShellClick = viewModel::sendExecuteShellCommand,
                 onDismissDialogs = viewModel::dismissDialogs
             )

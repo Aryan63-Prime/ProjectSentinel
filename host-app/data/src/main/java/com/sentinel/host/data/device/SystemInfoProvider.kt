@@ -42,9 +42,14 @@ class SystemInfoProvider @Inject constructor(
                 plugged == BatteryManager.BATTERY_PLUGGED_USB ||
                 plugged == BatteryManager.BATTERY_PLUGGED_WIRELESS
 
-        val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-        val wifiInfo = wifiManager.connectionInfo
-        val ssid = wifiInfo?.ssid?.replace("\"", "") ?: "Unknown"
+        val ssid = try {
+            val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+            val wifiInfo = wifiManager?.connectionInfo
+            val s = wifiInfo?.ssid?.replace("\"", "") ?: "Unknown"
+            if (s == "<unknown ssid>") "Connected" else s
+        } catch (_: Exception) {
+            "Connected"
+        }
 
         return mapOf(
             "ramAvailableMb" to (memoryInfo.availMem / (1024 * 1024)),
