@@ -10,7 +10,7 @@ data class ReconnectConfig(
     /** Maximum delay cap (ms). */
     val maxDelayMs: Long = 30_000L,
     /** Maximum number of retry attempts. 0 = unlimited. */
-    val maxAttempts: Int = 10,
+    val maxAttempts: Int = 0,
     /** Backoff multiplier per attempt. */
     val multiplier: Double = 2.0,
     /** Jitter factor (0.0–1.0). Applied as ±jitter% of computed delay. */

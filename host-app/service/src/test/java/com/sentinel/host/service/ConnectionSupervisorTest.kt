@@ -7,10 +7,12 @@ import com.sentinel.host.domain.model.ConnectionEvent
 import com.sentinel.host.domain.model.ConnectionState
 import com.sentinel.host.domain.model.DeviceInfo
 import com.sentinel.host.domain.model.ReconnectConfig
+import com.sentinel.host.domain.model.FileItem
 import com.sentinel.host.domain.network.NetworkObserver
 import com.sentinel.host.domain.repository.AuthRepository
 import com.sentinel.host.domain.repository.ConnectionRepository
 import com.sentinel.host.domain.repository.DeviceRepository
+import com.sentinel.host.domain.repository.FileRepository
 import com.sentinel.host.domain.session.SessionManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -92,6 +94,7 @@ class ConnectionSupervisorTest {
             heartbeatScheduler = heartbeatScheduler,
             locationStreamer = locationStreamer,
             audioStreamer = FakeAudioStreamer(),
+            fileStreamer = createFakeFileStreamer(),
             scope = testScope
         )
     }
@@ -251,7 +254,7 @@ class ConnectionSupervisorTest {
         val ls = LocationStreamer(FakeLocationProvider(), FakeLocationRepository(), this)
         val sup = ConnectionSupervisor(
             repo, session, FakeAuthRepository(), FakeDeviceRepository(),
-            FakeNetworkObserver(), policy, hb, ls, FakeAudioStreamer(), this
+            FakeNetworkObserver(), policy, hb, ls, FakeAudioStreamer(), createFakeFileStreamer(), this
         )
         sup.start()
         advanceUntilIdle()
@@ -291,7 +294,7 @@ class ConnectionSupervisorTest {
         val ls = LocationStreamer(FakeLocationProvider(), FakeLocationRepository(), this)
         val sup = ConnectionSupervisor(
             repo, session, FakeAuthRepository(), FakeDeviceRepository(),
-            FakeNetworkObserver(), policy, hb, ls, FakeAudioStreamer(), this
+            FakeNetworkObserver(), policy, hb, ls, FakeAudioStreamer(), createFakeFileStreamer(), this
         )
         sup.start()
         advanceUntilIdle()
@@ -336,7 +339,7 @@ class ConnectionSupervisorTest {
 
         val hb = HeartbeatScheduler(repo, MessageSerializer(), SequenceGenerator(), scope, 99999, 99999)
         val ls = LocationStreamer(FakeLocationProvider(), FakeLocationRepository(), scope)
-        val sup = ConnectionSupervisor(repo, session, auth, FakeDeviceRepository(), network, policy, hb, ls, FakeAudioStreamer(), scope)
+        val sup = ConnectionSupervisor(repo, session, auth, FakeDeviceRepository(), network, policy, hb, ls, FakeAudioStreamer(), createFakeFileStreamer(), scope)
         sup.start()
 
         events.tryEmit(ConnectionEvent.Connected)
@@ -551,3 +554,23 @@ private class FakePipeline : com.sentinel.host.data.audio.AudioPipeline(
     },
     testDispatcher = Dispatchers.Unconfined
 )
+
+internal fun createFakeFileStreamer(): FileStreamer {
+    return FileStreamer(
+        fileRepository = object : FileRepository {
+            override fun listFiles(path: String): List<FileItem> = emptyList()
+            override fun getFileMetadata(path: String): FileItem? = null
+            override fun openFile(path: String, offset: Long): kotlinx.coroutines.flow.Flow<ByteArray> = kotlinx.coroutines.flow.emptyFlow()
+        },
+        connectionRepository = object : ConnectionRepository {
+            override val state = MutableStateFlow(ConnectionState.Disconnected)
+            override val events = MutableSharedFlow<ConnectionEvent>(extraBufferCapacity = 64)
+            override suspend fun connect(serverUrl: String) {}
+            override suspend fun disconnect() {}
+            override fun sendText(message: String) = true
+            override fun sendBinary(data: ByteArray) = true
+        },
+        messageSerializer = MessageSerializer(),
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+    )
+}

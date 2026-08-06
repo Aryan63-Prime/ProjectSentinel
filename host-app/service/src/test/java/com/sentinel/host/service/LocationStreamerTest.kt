@@ -207,6 +207,8 @@ internal class FakeLocationProvider : LocationProvider {
     override var lastLocation: LocationUpdate? = null
         private set
 
+    override fun isLocationEnabled(): Boolean = true
+
     var startCount = 0
         private set
 

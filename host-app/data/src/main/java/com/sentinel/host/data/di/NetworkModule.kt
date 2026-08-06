@@ -52,9 +52,10 @@ object NetworkModule {
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         return OkHttpClient.Builder()
+            .connectTimeout(45, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
-            .writeTimeout(5, TimeUnit.SECONDS)
-            .pingInterval(0, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
+            .pingInterval(15, TimeUnit.SECONDS)
             .build()
     }
 

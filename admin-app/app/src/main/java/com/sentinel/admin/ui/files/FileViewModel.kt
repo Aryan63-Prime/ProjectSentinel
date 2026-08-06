@@ -1,9 +1,11 @@
 package com.sentinel.admin.ui.files
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sentinel.admin.data.remote.protocol.MessageSerializer
 import com.sentinel.admin.domain.model.ConnectionEvent
+import com.sentinel.admin.domain.model.ConnectionState
 import com.sentinel.admin.domain.model.FileItem
 import com.sentinel.admin.domain.repository.ConnectionRepository
 import com.sentinel.admin.service.files.FileDownloadManager
@@ -19,7 +21,9 @@ class FileViewModel @Inject constructor(
     private val downloadManager: FileDownloadManager
 ) : ViewModel() {
 
-    private val _currentPath = MutableStateFlow("/sdcard")
+    private val TAG = "Sentinel:FileVM"
+
+    private val _currentPath = MutableStateFlow("/storage/emulated/0")
     val currentPath = _currentPath.asStateFlow()
 
     private val _files = MutableStateFlow<List<FileItem>>(emptyList())
@@ -28,34 +32,70 @@ class FileViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
 
+    private var pendingLoadDeviceId: String? = null
+
     val downloadState = downloadManager.state
 
     init {
+        // Observe connection state
+        connectionRepository.state
+            .onEach { state ->
+                Log.d(TAG, "Connection state changed: $state")
+                if (state is ConnectionState.Ready || state is ConnectionState.TransportConnected) {
+                    val deviceId = pendingLoadDeviceId
+                    if (deviceId != null && _files.value.isEmpty() && !_isLoading.value) {
+                        Log.i(TAG, "Connection ready, executing pending load for $deviceId")
+                        loadDirectory(deviceId, _currentPath.value)
+                    }
+                }
+            }
+            .launchIn(viewModelScope)
+
+        // Observe connection events
         connectionRepository.events
             .onEach { event ->
-                if (event is ConnectionEvent.FilesListReceived) {
-                    val incoming = messageSerializer.deserialize(event.rawJson)
-                    if (incoming is com.sentinel.admin.data.remote.protocol.IncomingMessage.FilesListRes) {
-                        _files.value = incoming.items.map { 
-                            FileItem(it.name, it.is_dir, it.size, it.last_modified)
-                        }.sortedWith(compareBy({ !it.isDir }, { it.name.lowercase() }))
+                Log.d(TAG, "Event received: ${event::class.simpleName}")
+                when (event) {
+                    is ConnectionEvent.FilesListReceived -> {
+                        val incoming = messageSerializer.deserialize(event.rawJson)
+                        if (incoming is com.sentinel.admin.data.remote.protocol.IncomingMessage.FilesListRes) {
+                            Log.i(TAG, "Received file list for ${incoming.path} with ${incoming.items.size} items")
+                            _files.value = incoming.items.map { 
+                                FileItem(it.name, it.is_dir, it.size, it.last_modified)
+                            }.sortedWith(compareBy({ !it.isDir }, { it.name.lowercase() }))
+                            _isLoading.value = false
+                            pendingLoadDeviceId = null
+                        }
+                    }
+                    is ConnectionEvent.ServerError -> {
+                        Log.e(TAG, "Server error: ${event.message}")
                         _isLoading.value = false
                     }
+                    else -> {}
                 }
             }
             .launchIn(viewModelScope)
     }
 
     fun loadDirectory(deviceId: String, path: String) {
+        Log.i(TAG, "Loading directory: $path for device: $deviceId")
         _currentPath.value = path
         _isLoading.value = true
+        pendingLoadDeviceId = deviceId
+        
         val req = messageSerializer.serializeFilesListReq(deviceId, path, System.currentTimeMillis())
-        connectionRepository.sendText(req)
+        val sent = connectionRepository.sendText(req)
+        
+        if (sent) {
+            Log.d(TAG, "Request sent successfully")
+        } else {
+            Log.w(TAG, "Failed to send request (disconnected?), will retry when ready")
+        }
     }
 
     fun navigateBack(deviceId: String) {
         val current = _currentPath.value
-        if (current == "/" || current == "/sdcard") return
+        if (current == "/" || current == "/storage/emulated/0") return
         
         val parent = current.substringBeforeLast("/", "/")
         loadDirectory(deviceId, if (parent.isEmpty()) "/" else parent)

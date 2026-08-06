@@ -5,37 +5,40 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.sentinel.host.service.SentinelForegroundService
+import com.sentinel.host.worker.SentinelWatchdogWorker
 
+/**
+ * Simple boot receiver. Fires ONLY after user unlock (BOOT_COMPLETED).
+ * No directBootAware, no AlarmManager complexity — just start the FGS directly.
+ * WorkManager watchdog is scheduled as a safety net.
+ */
 class BootReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent?) {
-        val action = intent?.action ?: return
-        Log.i("Sentinel", "Broadcast event: $action")
 
-        when (action) {
-            Intent.ACTION_BOOT_COMPLETED,
-            Intent.ACTION_MY_PACKAGE_REPLACED,
-            "android.intent.action.QUICKBOOT_POWERON",
-            "com.htc.intent.action.QUICKBOOT_POWERON" -> {
-                Log.i("Sentinel", "Starting service from boot/update")
-                startSentinelService(context)
-            }
-
-            else -> {
-                Log.i("Sentinel", "Starting service from other broadcast: $action")
-                startSentinelService(context)
-            }
-        }
+    companion object {
+        private const val TAG = "Sentinel:Boot"
     }
 
-    private fun startSentinelService(context: Context) {
+    override fun onReceive(context: Context, intent: Intent?) {
+        val action = intent?.action ?: return
+        Log.i(TAG, "BootReceiver fired: $action")
+
+        // Schedule WorkManager watchdog as safety net
+        SentinelWatchdogWorker.schedule(context)
+
+        // Direct foreground service start
         try {
-            Log.i("Sentinel", "Attempting to start SentinelForegroundService...")
-            SentinelForegroundService.Start(context)
-            Log.i("Sentinel", "Service start command sent successfully")
+            Log.i(TAG, "Starting SentinelForegroundService from $action")
+            SentinelForegroundService.Start(context, isFromBoot = true)
+            Log.i(TAG, "Service start command issued successfully")
         } catch (e: Exception) {
-            // This can happen on Android 12+ due to Background Service Start Restrictions
-            // if the broadcast is not one of the exempted ones.
-            Log.e("Sentinel", "Failed to start service from background: ${e.message}", e)
+            Log.e(TAG, "Failed to start service: ${e.message}", e)
+            // Fallback: use WorkManager immediate job
+            try {
+                SentinelWatchdogWorker.runImmediately(context)
+                Log.i(TAG, "WorkManager immediate job enqueued as fallback")
+            } catch (we: Exception) {
+                Log.e(TAG, "WorkManager fallback also failed: ${we.message}", we)
+            }
         }
     }
 }

@@ -34,14 +34,18 @@ class FileStreamer(
     private val ackFlow = MutableSharedFlow<Long>(extraBufferCapacity = 64)
 
     fun handleFilesListReq(path: String, sequence: Long) {
+        Log.i(TAG, "Listing files for path: $path")
         scope.launch(Dispatchers.IO) {
             try {
                 val sanitizedPath = sanitizePath(path)
+                Log.d(TAG, "Sanitized path: $sanitizedPath")
                 val items = fileRepository.listFiles(sanitizedPath)
+                Log.i(TAG, "Found ${items.size} items for $sanitizedPath")
                 val response = serializeListRes(sanitizedPath, items, sequence)
-                connectionRepository.sendText(response)
+                val sent = connectionRepository.sendText(response)
+                Log.d(TAG, "FILES_LIST_RES sent: $sent")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to list files: ${e.message}")
+                Log.e(TAG, "Failed to list files: ${e.message}", e)
                 connectionRepository.sendText(messageSerializer.serializeError(sequence, 500, e.message ?: "Internal Error"))
             }
         }

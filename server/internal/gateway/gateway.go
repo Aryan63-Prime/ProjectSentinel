@@ -96,13 +96,18 @@ func (g *Gateway) registerRoutes() {
 }
 
 func (g *Gateway) health(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.Header().Set("Allow", http.MethodGet)
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		w.Header().Set("Allow", "GET, HEAD")
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method == http.MethodHead {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 
 	_ = json.NewEncoder(w).Encode(g.healthService.Report(r.Context()))
 }

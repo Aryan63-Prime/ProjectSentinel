@@ -50,7 +50,22 @@ class FusedLocationProviderImpl(context: Context) : LocationProvider {
         LocationServices.getFusedLocationProviderClient(context)
 
     private fun getBatteryLevel(): Int {
-        val intent = appContext.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val bm = appContext.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+        val directLevel = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+        if (directLevel in 0..100) {
+            return directLevel
+        }
+
+        val intent = try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                appContext.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED), Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                appContext.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            }
+        } catch (e: Exception) {
+            null
+        }
+
         val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
         val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, 100) ?: 100
         return if (level >= 0 && scale > 0) (level * 100 / scale) else 0

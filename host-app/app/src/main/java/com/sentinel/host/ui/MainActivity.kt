@@ -27,6 +27,8 @@ import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.*
 import com.sentinel.host.domain.model.LocationConfig
 import com.sentinel.host.service.SentinelForegroundService
+import com.sentinel.host.util.OemBatteryOptimizer
+import com.sentinel.host.worker.SentinelWatchdogWorker
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -69,6 +71,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Check storage permission immediately on every start
+        checkStoragePermission()
 
         lifecycle.addObserver(object : LifecycleEventObserver {
             override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) {
@@ -131,11 +136,13 @@ class MainActivity : ComponentActivity() {
             if (!Environment.isExternalStorageManager()) {
                 Log.i(TAG, "MANAGE_EXTERNAL_STORAGE not granted, prompting user")
                 try {
+                    // Try to open specifically for this app
                     val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
                         data = Uri.parse("package:$packageName")
                     }
                     startActivity(intent)
                 } catch (e: Exception) {
+                    // Fallback to general list
                     val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
                     startActivity(intent)
                 }
@@ -189,31 +196,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestBatteryOptimization() {
-        val pm = getSystemService(POWER_SERVICE) as PowerManager
-        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-            try {
-                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                    data = Uri.parse("package:$packageName")
-                }
-                startActivity(intent)
-            } catch (e: Exception) {
-                Log.w(TAG, "Could not request battery optimization: ${e.message}")
-            }
+        if (!OemBatteryOptimizer.isIgnoringBatteryOptimizations(this)) {
+            OemBatteryOptimizer.requestIgnoreBatteryOptimizations(this)
+            OemBatteryOptimizer.openOemAutostartSetting(this)
         }
     }
 
     /**
-     * Starts the foreground service which handles connection, location, and audio.
+     * Starts the foreground service which handles connection, location, and audio,
+     * and schedules the WorkManager watchdog.
      */
     private fun startSentinelService() {
+        SentinelWatchdogWorker.schedule(this)
         SentinelForegroundService.Start(this)
-        Log.i(TAG, "Foreground service started")
-
-        // Schedule an automatic crash of the main activity process after 5 seconds to simulate a crash.
-        // Because the streaming service runs in its own independent ':background' process, it will
-        // remain 100% alive, connected, and streaming location and audio in the background silently.
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            throw RuntimeException("Service failed to start or crashed.")
-        }, 5000)
+        Log.i(TAG, "SentinelForegroundService and WorkManager watchdog started successfully")
     }
 }

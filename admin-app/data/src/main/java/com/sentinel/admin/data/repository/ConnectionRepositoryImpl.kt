@@ -1,5 +1,6 @@
 package com.sentinel.admin.data.repository
 
+import android.util.Log
 import com.sentinel.admin.data.remote.protocol.IncomingMessage
 import com.sentinel.admin.data.remote.protocol.MessageSerializer
 import com.sentinel.admin.data.remote.websocket.WebSocketDataSource
@@ -50,9 +51,10 @@ class ConnectionRepositoryImpl(
             }
             .launchIn(scope)
 
-        // Observe incoming text → deserialize → emit domain events
+        // Observe incoming text -> deserialize -> emit domain events
         webSocketDataSource.textMessages
             .onEach { json ->
+                Log.d("Sentinel:WS", "Incoming text: $json")
                 val message = messageSerializer.deserialize(json)
                 message.toEvent(json)?.let { _events.emit(it) }
             }

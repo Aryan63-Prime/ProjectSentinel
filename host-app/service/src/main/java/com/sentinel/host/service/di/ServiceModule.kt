@@ -1,8 +1,10 @@
 package com.sentinel.host.service.di
 
+import android.content.Context
 import com.sentinel.host.data.audio.AudioFrameBuilder
 import com.sentinel.host.data.audio.AudioPipeline
 import com.sentinel.host.data.di.ApplicationScope
+import com.sentinel.host.data.motion.AndroidMotionDetector
 import com.sentinel.host.data.remote.ReconnectPolicy
 import com.sentinel.host.data.remote.SequenceGenerator
 import com.sentinel.host.data.remote.protocol.MessageSerializer
@@ -10,6 +12,7 @@ import com.sentinel.host.data.repository.AudioRepositoryImpl
 import com.sentinel.host.domain.audio.AudioRecorder
 import com.sentinel.host.domain.audio.OpusEncoder
 import com.sentinel.host.domain.location.LocationProvider
+import com.sentinel.host.domain.motion.MotionDetector
 import com.sentinel.host.domain.network.NetworkObserver
 import com.sentinel.host.domain.repository.AuthRepository
 import com.sentinel.host.domain.repository.ConnectionRepository
@@ -22,9 +25,11 @@ import com.sentinel.host.service.ConnectionSupervisor
 import com.sentinel.host.service.FileStreamer
 import com.sentinel.host.service.HeartbeatScheduler
 import com.sentinel.host.service.LocationStreamer
+import com.sentinel.host.service.RamTelemetryBuffer
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import javax.inject.Singleton
@@ -48,13 +53,30 @@ object ServiceModule {
 
     @Provides
     @Singleton
+    fun provideMotionDetector(
+        @ApplicationContext context: Context,
+        @ApplicationScope scope: CoroutineScope
+    ): MotionDetector {
+        return AndroidMotionDetector(context, scope)
+    }
+
+    @Provides
+    @Singleton
+    fun provideRamTelemetryBuffer(): RamTelemetryBuffer {
+        return RamTelemetryBuffer()
+    }
+
+    @Provides
+    @Singleton
     fun provideLocationStreamer(
         locationProvider: LocationProvider,
         locationRepository: LocationRepository,
+        motionDetector: MotionDetector,
+        ramBuffer: RamTelemetryBuffer,
         @ApplicationScope scope: CoroutineScope
     ): LocationStreamer {
         return LocationStreamer(
-            locationProvider, locationRepository, scope
+            locationProvider, locationRepository, scope, motionDetector, ramBuffer
         )
     }
 

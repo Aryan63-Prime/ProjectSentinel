@@ -108,6 +108,14 @@ open class AdminSupervisor(
     }
 
     private fun connect() {
+        if (connectionRepository.state.value is ConnectionState.TransportConnected) {
+            Log.i(TAG, "Already connected, skipping connection state and starting authentication")
+            reconnectAttempt = 0
+            _connectionState.value = ConnectionState.Authenticating
+            sendAuth()
+            return
+        }
+
         _connectionState.value = ConnectionState.Connecting
         scope.launch {
             connectionRepository.connect(serverUrl)

@@ -32,7 +32,7 @@ fun FileBrowserScreen(
     val downloadState by viewModel.downloadState.collectAsState()
 
     LaunchedEffect(deviceId) {
-        viewModel.loadDirectory(deviceId, "/sdcard")
+        viewModel.loadDirectory(deviceId, "/storage/emulated/0")
     }
 
     Scaffold(
@@ -46,7 +46,7 @@ fun FileBrowserScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = { 
-                        if (currentPath == "/sdcard" || currentPath == "/") onBack()
+                        if (currentPath == "/storage/emulated/0" || currentPath == "/") onBack()
                         else viewModel.navigateBack(deviceId)
                     }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
