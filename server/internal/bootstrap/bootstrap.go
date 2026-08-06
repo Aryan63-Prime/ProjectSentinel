@@ -7,6 +7,7 @@ import (
 	"github.com/xaiop/project-sentinel/server/internal/app"
 	"github.com/xaiop/project-sentinel/server/internal/audio"
 	"github.com/xaiop/project-sentinel/server/internal/auth"
+	"github.com/xaiop/project-sentinel/server/internal/command"
 	"github.com/xaiop/project-sentinel/server/internal/config"
 	"github.com/xaiop/project-sentinel/server/internal/database"
 	"github.com/xaiop/project-sentinel/server/internal/device"
@@ -60,6 +61,9 @@ func Build() (*app.Application, error) {
 
 	fileHandler := file.NewHandler(fileService, gw)
 	dispatch.SetFileHandler(fileHandler)
+
+	commandHandler := command.NewHandler(gw, gw)
+	dispatch.SetCommandHandler(commandHandler)
 
 	dispatch.SetBroadcaster(gw)
 	audioService.SetForwarder(gw)

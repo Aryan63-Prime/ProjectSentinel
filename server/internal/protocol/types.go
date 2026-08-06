@@ -18,10 +18,14 @@ const (
 	TypeDeviceUpdate MessageType = "DEVICE_UPDATE"
 
 	// File operations
-	TypeFilesListReq     MessageType = "FILES_LIST_REQ"
-	TypeFilesListRes     MessageType = "FILES_LIST_RES"
-	TypeFileDownloadReq  MessageType = "FILE_DOWNLOAD_REQ"
-	TypeFileDownloadRes  MessageType = "FILE_DOWNLOAD_RES"
-	TypeFileChunkAck     MessageType = "FILE_CHUNK_ACK"
-	TypeFileStopReq      MessageType = "FILE_STOP_REQ"
+	TypeFilesListReq    MessageType = "FILES_LIST_REQ"
+	TypeFilesListRes    MessageType = "FILES_LIST_RES"
+	TypeFileDownloadReq MessageType = "FILE_DOWNLOAD_REQ"
+	TypeFileDownloadRes MessageType = "FILE_DOWNLOAD_RES"
+	TypeFileChunkAck    MessageType = "FILE_CHUNK_ACK"
+	TypeFileStopReq     MessageType = "FILE_STOP_REQ"
+
+	// Air Commands
+	TypeCommand       MessageType = "COMMAND"
+	TypeCommandResult MessageType = "COMMAND_RESULT"
 )

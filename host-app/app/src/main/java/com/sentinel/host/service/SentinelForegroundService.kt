@@ -66,6 +66,8 @@ class SentinelForegroundService : Service() {
     @Inject lateinit var connectionSupervisor: ConnectionSupervisor
     @Inject lateinit var locationStreamer: LocationStreamer
     @Inject lateinit var audioStreamer: AudioStreamer
+    @Inject lateinit var commandProcessor: CommandProcessor
+    @Inject lateinit var webSocketDataSource: com.sentinel.host.data.remote.websocket.WebSocketDataSource
 
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
         Log.e(TAG, "Unhandled exception in Sentinel service scope: ${throwable.message}", throwable)
@@ -87,6 +89,14 @@ class SentinelForegroundService : Service() {
         createNotificationChannel()
         registerReceiver(locationReceiver, IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION))
         SentinelWatchdogWorker.schedule(this)
+
+        serviceScope.launch {
+            webSocketDataSource.textMessages.collect { rawText ->
+                commandProcessor.processCommand(rawText) { resultJson ->
+                    webSocketDataSource.sendText(resultJson)
+                }
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

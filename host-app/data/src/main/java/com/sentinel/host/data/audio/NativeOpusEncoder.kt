@@ -40,10 +40,11 @@ class NativeOpusEncoder : OpusEncoder {
      *
      * @return true if initialization succeeded.
      */
+    @Synchronized
     fun initialize(): Boolean {
         if (handle != 0L) {
-            Log.w(TAG, "Already initialized — closing first")
-            close()
+            Log.d(TAG, "Already initialized — reusing handle")
+            return true
         }
 
         handle = OpusJni.nativeCreate(
@@ -73,6 +74,7 @@ class NativeOpusEncoder : OpusEncoder {
         return OpusJni.nativeEncode(h, pcm, frameSize, output, maxOutput)
     }
 
+    @Synchronized
     override fun close() {
         val h = handle
         if (h != 0L) {

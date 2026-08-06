@@ -1,6 +1,7 @@
 package com.sentinel.host
 
 import android.app.Application
+import com.sentinel.host.worker.SentinelWatchdogWorker
 import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp

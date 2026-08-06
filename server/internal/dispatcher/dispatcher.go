@@ -8,6 +8,7 @@ import (
 
 	"github.com/xaiop/project-sentinel/server/internal/audio"
 	"github.com/xaiop/project-sentinel/server/internal/auth"
+	"github.com/xaiop/project-sentinel/server/internal/command"
 	"github.com/xaiop/project-sentinel/server/internal/device"
 	"github.com/xaiop/project-sentinel/server/internal/file"
 	"github.com/xaiop/project-sentinel/server/internal/heartbeat"
@@ -21,6 +22,7 @@ type Session interface {
 	location.Session
 	audio.Session
 	file.Session
+	command.Session
 
 	IsAuthenticated() bool
 	AuthenticatedDeviceID() string
@@ -45,6 +47,7 @@ type Dispatcher struct {
 	location    *location.Handler
 	audio       *audio.Handler
 	file        *file.Handler
+	command     *command.Handler
 	broadcaster Broadcaster
 }
 
@@ -74,6 +77,11 @@ func (d *Dispatcher) SetBroadcaster(b Broadcaster) {
 // SetFileHandler configures the file message handler.
 func (d *Dispatcher) SetFileHandler(h *file.Handler) {
 	d.file = h
+}
+
+// SetCommandHandler configures the command message handler.
+func (d *Dispatcher) SetCommandHandler(h *command.Handler) {
+	d.command = h
 }
 
 func (d *Dispatcher) Dispatch(ctx context.Context, session Session, data []byte) Result {
@@ -118,8 +126,8 @@ func (d *Dispatcher) Dispatch(ctx context.Context, session Session, data []byte)
 		if err == nil {
 			ts := time.Now().UTC().Format(time.RFC3339)
 			d.broadcastDeviceUpdate(protocol.DeviceUpdateMessage{
-				Event:    protocol.EventHeartbeat,
-				DeviceID: session.AuthenticatedDeviceID(),
+				Event:     protocol.EventHeartbeat,
+				DeviceID:  session.AuthenticatedDeviceID(),
 				Timestamp: &ts,
 			})
 		}
@@ -170,6 +178,20 @@ func (d *Dispatcher) Dispatch(ctx context.Context, session Session, data []byte)
 	case protocol.TypeFileStopReq:
 		response, err := d.file.HandleFileStopReq(ctx, session, message)
 		return d.dispatchWithErrors(response, err, message.Sequence)
+
+	case protocol.TypeCommand:
+		if d.command == nil {
+			return Result{Message: protocol.NewError(message.Sequence, 500, "Command handler not configured")}
+		}
+		response, err := d.command.HandleCommand(ctx, session, message)
+		return d.dispatchWithErrors(response, err, message.Sequence)
+
+	case protocol.TypeCommandResult:
+		if d.command == nil {
+			return Result{Message: protocol.NewError(message.Sequence, 500, "Command handler not configured")}
+		}
+		err := d.command.HandleCommandResult(ctx, session, message)
+		return d.dispatchWithErrors(nil, err, message.Sequence)
 
 	case protocol.TypeStop:
 		response, err := d.dispatchStop(ctx, session, message)

@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Battery4Bar
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DevicesOther
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.NetworkCell
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -75,6 +76,7 @@ fun DashboardScreen(
     onSortOrderChanged: (SortOrder) -> Unit,
     onViewModeChanged: (ViewMode) -> Unit,
     onDeviceClick: (String) -> Unit,
+    onRecordingsClick: () -> Unit = {},
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -94,6 +96,10 @@ fun DashboardScreen(
                     titleContentColor = MaterialTheme.colorScheme.onSurface
                 ),
                 actions = {
+                    // Recordings Gallery
+                    IconButton(onClick = onRecordingsClick) {
+                        Icon(Icons.Default.Mic, contentDescription = "Saved Recordings")
+                    }
                     // Sort
                     Box {
                         IconButton(onClick = { sortMenuExpanded = true }) {

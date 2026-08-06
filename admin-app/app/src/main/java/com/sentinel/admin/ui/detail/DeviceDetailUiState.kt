@@ -21,7 +21,22 @@ data class DeviceDetailUiState(
     /** Audio playback state — observed from AudioMonitor, not owned by ViewModel. */
     val playbackState: PlaybackState = PlaybackState.Idle,
     /** Audio statistics — observed from AudioMonitor. */
-    val audioStats: AudioStatistics = AudioStatistics()
+    val audioStats: AudioStatistics = AudioStatistics(),
+    /** Audio recording active status. */
+    val isRecording: Boolean = false,
+    /** Active recording duration in milliseconds. */
+    val recordingDurationMs: Long = 0L,
+    /** Air Command Dialog States */
+    val showDiagnosticsDialog: Boolean = false,
+    val diagnosticsData: Map<String, Any> = emptyMap(),
+    val showPhotoDialog: Boolean = false,
+    val capturedPhotoBase64: String = "",
+    val capturedPhotoFacing: String = "REAR",
+    val showShellDialog: Boolean = false,
+    val shellOutput: String = "",
+    val showLogsDialog: Boolean = false,
+    val logsList: List<String> = emptyList(),
+    val commandStatusMessage: String? = null
 ) {
     /** True if device loaded successfully. */
     val hasDevice: Boolean get() = device != null && errorMessage == null

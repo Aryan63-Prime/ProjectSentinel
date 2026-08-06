@@ -30,6 +30,7 @@ object AdminRoutes {
     const val DASHBOARD = "dashboard"
     const val DEVICE_DETAIL = "device/{deviceId}"
     const val FILE_BROWSER = "device/{deviceId}/files"
+    const val RECORDINGS = "recordings"
 
     fun deviceDetail(deviceId: String) = "device/$deviceId"
     fun fileBrowser(deviceId: String) = "device/$deviceId/files"
@@ -84,6 +85,9 @@ fun AdminNavGraph() {
                 onDeviceClick = { deviceId ->
                     navController.navigate(AdminRoutes.deviceDetail(deviceId))
                 },
+                onRecordingsClick = {
+                    navController.navigate(AdminRoutes.RECORDINGS)
+                },
                 onRetry = viewModel::retry
             )
         }
@@ -91,6 +95,7 @@ fun AdminNavGraph() {
         composable(AdminRoutes.DEVICE_DETAIL) {
             val viewModel: DeviceDetailViewModel = hiltViewModel()
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+            val context = androidx.compose.ui.platform.LocalContext.current
 
             DeviceDetailScreen(
                 uiState = uiState,
@@ -99,9 +104,17 @@ fun AdminNavGraph() {
                 onRetry = viewModel::retry,
                 onListenClick = viewModel::onListenClick,
                 onStopClick = viewModel::onStopClick,
+                onRecordToggle = { viewModel.toggleRecording(context) },
+                onRecordingsClick = { navController.navigate(AdminRoutes.RECORDINGS) },
                 onFilesClick = { deviceId -> 
                     navController.navigate(AdminRoutes.fileBrowser(deviceId))
-                }
+                },
+                onSystemInfoClick = viewModel::sendSystemInfoCommand,
+                onTriggerBeaconClick = viewModel::sendTriggerBeaconCommand,
+                onCapturePhotoClick = { viewModel.sendCapturePhotoCommand(useFront = false) },
+                onFetchLogsClick = viewModel::sendFetchLogsCommand,
+                onExecuteShellClick = viewModel::sendExecuteShellCommand,
+                onDismissDialogs = viewModel::dismissDialogs
             )
         }
 
@@ -110,6 +123,14 @@ fun AdminNavGraph() {
             FileBrowserScreen(
                 deviceId = deviceId,
                 onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(AdminRoutes.RECORDINGS) {
+            val viewModel: com.sentinel.admin.ui.recordings.RecordingsViewModel = hiltViewModel()
+            com.sentinel.admin.ui.recordings.RecordingsScreen(
+                viewModel = viewModel,
+                onBackClick = { navController.popBackStack() }
             )
         }
     }

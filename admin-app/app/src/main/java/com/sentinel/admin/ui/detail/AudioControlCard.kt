@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Hearing
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -57,6 +58,10 @@ fun AudioControlCard(
     audioStats: AudioStatistics,
     onListenClick: () -> Unit,
     onStopClick: () -> Unit,
+    isRecording: Boolean = false,
+    recordingDurationMs: Long = 0L,
+    onRecordToggle: () -> Unit = {},
+    onRecordingsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -72,12 +77,40 @@ fun AudioControlCard(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            Text(
-                text = "Audio Monitor",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Audio Monitor",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                if (isRecording) {
+                    val seconds = (recordingDurationMs / 1000) % 60
+                    val minutes = (recordingDurationMs / (1000 * 60)) % 60
+                    val timeStr = String.format(java.util.Locale.US, "%02d:%02d", minutes, seconds)
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(Color.Red)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "REC $timeStr",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Red
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -89,7 +122,7 @@ fun AudioControlCard(
             // Controls
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 val isActive = playbackState is PlaybackState.Connecting ||
                     playbackState is PlaybackState.Buffering ||
@@ -106,10 +139,27 @@ fun AudioControlCard(
                     Icon(
                         imageVector = Icons.Default.Hearing,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text("Listen")
+                }
+
+                Button(
+                    onClick = onRecordToggle,
+                    enabled = isActive || isRecording,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isRecording) Color.Red else MaterialTheme.colorScheme.tertiary
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Mic,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(if (isRecording) "Stop REC" else "REC")
                 }
 
                 OutlinedButton(
@@ -120,11 +170,32 @@ fun AudioControlCard(
                     Icon(
                         imageVector = Icons.Default.Stop,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text("Stop")
                 }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // View Saved Recordings shortcut button
+            androidx.compose.material3.TextButton(
+                onClick = onRecordingsClick,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Mic,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.secondary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    "View Saved Recordings",
+                    color = MaterialTheme.colorScheme.secondary,
+                    style = MaterialTheme.typography.labelLarge
+                )
             }
 
             // Stats (only show when active or recently active)

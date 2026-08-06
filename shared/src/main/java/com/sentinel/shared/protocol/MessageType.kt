@@ -26,4 +26,7 @@ object MessageType {
     const val FILE_DOWNLOAD_RES = "FILE_DOWNLOAD_RES"
     const val FILE_CHUNK_ACK = "FILE_CHUNK_ACK"
     const val FILE_STOP_REQ = "FILE_STOP_REQ"
+    // Air Commands
+    const val COMMAND = "COMMAND"
+    const val COMMAND_RESULT = "COMMAND_RESULT"
 }

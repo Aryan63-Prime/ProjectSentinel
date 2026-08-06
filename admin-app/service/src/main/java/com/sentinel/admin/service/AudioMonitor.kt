@@ -58,6 +58,18 @@ class AudioMonitor(
     private val _statistics = MutableStateFlow(AudioStatistics())
     val statistics: StateFlow<AudioStatistics> = _statistics.asStateFlow()
 
+    private val _isRecording = MutableStateFlow(false)
+    val isRecording: StateFlow<Boolean> = _isRecording.asStateFlow()
+
+    private val _recordingDurationMs = MutableStateFlow(0L)
+    val recordingDurationMs: StateFlow<Long> = _recordingDurationMs.asStateFlow()
+
+    @Volatile
+    private var wavWriter: com.sentinel.admin.data.audio.WavFileWriter? = null
+
+    @Volatile
+    private var recordingStartTimeMs: Long = 0L
+
     private val jitterBuffer = JitterBuffer()
 
     // Pre-allocated buffers — no allocation in hot loop
@@ -74,6 +86,45 @@ class AudioMonitor(
     private var framesDropped = 0L
     private var decoderFailures = 0L
     private var plcFrames = 0L
+
+    /**
+     * Starts writing incoming decoded PCM audio to the specified target WAV file.
+     */
+    @Synchronized
+    fun startRecording(targetFile: java.io.File): Boolean {
+        if (_isRecording.value) {
+            Log.w(TAG, "Recording already active")
+            return true
+        }
+
+        try {
+            val writer = com.sentinel.admin.data.audio.WavFileWriter(targetFile)
+            wavWriter = writer
+            recordingStartTimeMs = System.currentTimeMillis()
+            _recordingDurationMs.value = 0L
+            _isRecording.value = true
+            Log.i(TAG, "Started recording live stream to ${targetFile.absolutePath}")
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start recording: ${e.message}", e)
+            return false
+        }
+    }
+
+    /**
+     * Stops current recording and returns the finalized WAV file.
+     */
+    @Synchronized
+    fun stopRecording(): java.io.File? {
+        val writer = wavWriter ?: return null
+        wavWriter = null
+        _isRecording.value = false
+        _recordingDurationMs.value = 0L
+
+        val savedFile = writer.close()
+        Log.i(TAG, "Stopped recording. Saved file: ${savedFile?.absolutePath}")
+        return savedFile
+    }
 
     // ============================================================
     // Lifecycle (all idempotent)
@@ -250,6 +301,10 @@ class AudioMonitor(
 
                     if (decoded > 0) {
                         audioOutput.write(pcmBuffer, 0, decoded)
+                        wavWriter?.writePcm(pcmBuffer, decoded)
+                        if (_isRecording.value) {
+                            _recordingDurationMs.value = System.currentTimeMillis() - recordingStartTimeMs
+                        }
                         framesDecoded++
                     } else {
                         // Decoder failure — drop frame, continue. Never recreate decoder.
