@@ -319,6 +319,20 @@ class DeviceDetailViewModel @Inject constructor(
                         return@collect
                     }
 
+                    if (msgType == "COMMAND") {
+                        val data = json.optJSONObject("data")
+                        val cmd = data?.optString("command")
+                        val target = data?.optString("targetDeviceId")
+                        if (target == deviceId && !cmd.isNullOrBlank()) {
+                            android.util.Log.w("Sentinel:AdminCmd", "Server routed COMMAND $cmd to admin session; retrying to target host...")
+                            viewModelScope.launch {
+                                kotlinx.coroutines.delay(400L)
+                                sendCommand(cmd, data.optJSONObject("params") ?: org.json.JSONObject())
+                            }
+                        }
+                        return@collect
+                    }
+
                     if (msgType != "COMMAND_RESULT") return@collect
 
                     val data = json.optJSONObject("data") ?: return@collect

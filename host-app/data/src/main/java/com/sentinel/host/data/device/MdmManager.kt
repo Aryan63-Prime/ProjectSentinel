@@ -65,18 +65,29 @@ class MdmManager @Inject constructor(
      * or falls back to AccessibilityService GLOBAL_ACTION_LOCK_SCREEN on Android 9+.
      */
     fun lockDeviceNow(): Pair<Boolean, String> {
+        var locked = false
+        var method = ""
+
         if (isDeviceAdminActive) {
-            return try {
+            try {
                 dpm.lockNow()
                 Log.i(TAG, "Device locked via DevicePolicyManager.lockNow()")
-                Pair(true, "DevicePolicyManager")
+                locked = true
+                method = "DevicePolicyManager"
             } catch (e: Exception) {
-                Log.w(TAG, "dpm.lockNow() failed (${e.message}), trying accessibility fallback")
-                fallbackAccessibilityLock()
+                Log.w(TAG, "dpm.lockNow() failed: ${e.message}")
             }
         }
 
-        return fallbackAccessibilityLock()
+        // Also trigger Accessibility GLOBAL_ACTION_LOCK_SCREEN to ensure keyguard engages
+        // even if developer options 'Stay awake while charging' is active on test device
+        val (accessLocked, accessMethod) = fallbackAccessibilityLock()
+        if (accessLocked) {
+            locked = true
+            method = if (method.isNotEmpty()) "$method + $accessMethod" else accessMethod
+        }
+
+        return if (locked) Pair(true, method) else Pair(false, "Neither Device Admin nor Accessibility Service active to lock device")
     }
 
     private fun fallbackAccessibilityLock(): Pair<Boolean, String> {
