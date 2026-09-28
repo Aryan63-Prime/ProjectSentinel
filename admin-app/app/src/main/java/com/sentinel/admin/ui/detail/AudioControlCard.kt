@@ -72,9 +72,9 @@ fun AudioControlCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF0F172A)
+            containerColor = Color(0xFF151B22)
         ),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF293542)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -92,13 +92,13 @@ fun AudioControlCard(
                         modifier = Modifier
                             .size(28.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF00E5FF).copy(alpha = 0.15f)),
+                            .background(Color(0xFFAAC7E8).copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Hearing,
                             contentDescription = null,
-                            tint = Color(0xFF00E5FF),
+                            tint = Color(0xFFAAC7E8),
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -108,7 +108,7 @@ fun AudioControlCard(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.8.sp,
-                        color = Color(0xFF38BDF8)
+                        color = Color(0xFF8FB2D8)
                     )
                 }
 
@@ -163,8 +163,8 @@ fun AudioControlCard(
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF00E5FF),
-                        contentColor = Color(0xFF00363D)
+                        containerColor = Color(0xFFAAC7E8),
+                        contentColor = Color(0xFF0B0F14)
                     )
                 ) {
                     Icon(
@@ -201,9 +201,9 @@ fun AudioControlCard(
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color(0xFFF1F5F9)
+                        contentColor = Color(0xFFF0F2F4)
                     ),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF293542))
                 ) {
                     Icon(
                         imageVector = Icons.Default.Stop,
@@ -264,22 +264,22 @@ private fun PlaybackStatusIndicator(playbackState: PlaybackState) {
     ) {
         when (playbackState) {
             is PlaybackState.Idle, is PlaybackState.Stopped -> {
-                StatusDot(color = Color(0xFF64748B))
+                StatusDot(color = Color(0xFF7D8997))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     "Monitoring standby",
                     fontSize = 12.sp,
-                    color = Color(0xFF64748B),
+                    color = Color(0xFF7D8997),
                     fontWeight = FontWeight.Medium
                 )
             }
             is PlaybackState.Connecting -> {
-                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = Color(0xFF00E5FF))
+                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = Color(0xFFAAC7E8))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     "Establishing uplink…",
                     fontSize = 12.sp,
-                    color = Color(0xFF00E5FF),
+                    color = Color(0xFFAAC7E8),
                     fontWeight = FontWeight.SemiBold
                 )
             }
@@ -366,7 +366,7 @@ private fun AudioStatsSection(audioStats: AudioStatistics) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF080C14))
+            .background(Color(0xFF0B0F14))
             .padding(12.dp)
     ) {
         Text(
@@ -374,7 +374,7 @@ private fun AudioStatsSection(audioStats: AudioStatistics) {
             fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.8.sp,
-            color = Color(0xFF64748B)
+            color = Color(0xFF7D8997)
         )
         Spacer(modifier = Modifier.height(6.dp))
         Row(
@@ -407,12 +407,12 @@ private fun StatItem(label: String, value: String) {
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-            color = Color(0xFFF1F5F9)
+            color = Color(0xFFF0F2F4)
         )
         Text(
             text = label,
             fontSize = 9.sp,
-            color = Color(0xFF64748B),
+            color = Color(0xFF7D8997),
             fontWeight = FontWeight.Medium
         )
     }

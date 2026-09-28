@@ -98,8 +98,7 @@ class SentinelForegroundService : Service() {
         registerReceiver(locationReceiver, IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION))
         SentinelWatchdogWorker.schedule(this)
 
-        // Start automated fall detection & SOS trigger
-        fallDetector.start()
+        // Fall detector listener setup (dormant by default to prevent false sirens)
         fallDetector.onEmergencyTriggered = { peakG ->
             Log.e(TAG, "EMERGENCY: Fall detected with peak $peakG g!")
             val lastLoc = locationStreamer.lastLocation

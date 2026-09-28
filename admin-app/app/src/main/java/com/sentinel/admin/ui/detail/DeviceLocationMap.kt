@@ -1,5 +1,6 @@
 package com.sentinel.admin.ui.detail
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,7 +27,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.clickable
@@ -90,12 +96,12 @@ fun DeviceLocationMap(
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF0F172A)
+            containerColor = Color(0xFF121923)
         ),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF29446E)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // Header Row: Title + Accuracy Badge + Open Google Maps button
@@ -111,29 +117,29 @@ fun DeviceLocationMap(
                         modifier = Modifier
                             .size(28.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF00E5FF).copy(alpha = 0.15f)),
+                            .background(Color(0xFFAAC7E8).copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.LocationOn,
                             contentDescription = null,
-                            tint = Color(0xFF00E5FF),
+                            tint = Color(0xFFAAC7E8),
                             modifier = Modifier.size(16.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Column {
                         Text(
-                            text = "LIVE SATELLITE POSITION",
+                            text = "LIVE LOCATION",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF94A3B8),
+                            color = Color(0xFFABC2E4),
                             letterSpacing = 0.8.sp
                         )
                         Text(
                             text = "Accuracy ±${location.accuracy.toInt()}m",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF38BDF8),
+                            color = Color(0xFF76B6FF),
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -145,7 +151,7 @@ fun DeviceLocationMap(
                     shape = RoundedCornerShape(10.dp),
                     colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
                         containerColor = Color(0xFF0284C7).copy(alpha = 0.2f),
-                        contentColor = Color(0xFF38BDF8)
+                        contentColor = Color(0xFF8FB2D8)
                     ),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                     modifier = Modifier.height(32.dp)
@@ -168,10 +174,11 @@ fun DeviceLocationMap(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(260.dp)
+                    .height(164.dp)
             ) {
+                SpatialMapBackdrop(modifier = Modifier.fillMaxSize())
                 AndroidView(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().alpha(.38f),
                     factory = { ctx ->
                         val cssContent = try {
                             ctx.assets.open("leaflet.css").bufferedReader().use { it.readText() }
@@ -296,6 +303,31 @@ fun DeviceLocationMap(
                     }
                 )
 
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF388BFF).copy(alpha = .28f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(15.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF69B5FF)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White)
+                            )
+                        }
+                    }
+                }
+
                 // Floating quick button inside the map container at bottom-right for instant 1-tap navigation
                 Box(
                     modifier = Modifier
@@ -310,13 +342,13 @@ fun DeviceLocationMap(
                         Icon(
                             imageVector = Icons.Default.LocationOn,
                             contentDescription = "Open in Maps",
-                            tint = Color(0xFF00E5FF),
+                            tint = Color(0xFFAAC7E8),
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "Open Google Maps ↗",
-                            color = Color(0xFFF1F5F9),
+                            color = Color(0xFFF0F2F4),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -337,17 +369,52 @@ fun DeviceLocationMap(
                     text = "${String.format("%.5f", location.latitude)}, ${String.format("%.5f", location.longitude)}",
                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                     fontSize = 12.sp,
-                    color = Color(0xFF94A3B8),
+                    color = Color(0xFF9AA7B6),
                     fontWeight = FontWeight.Medium
                 )
                 Text(
                     text = cleanNetwork,
                     fontSize = 11.sp,
-                    color = Color(0xFF38BDF8),
+                    color = Color(0xFF8FB2D8),
                     fontWeight = FontWeight.SemiBold
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun SpatialMapBackdrop(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        drawRect(
+            brush = Brush.linearGradient(
+                colors = listOf(Color(0xFF172D4E), Color(0xFF0A192E), Color(0xFF132946)),
+                start = Offset.Zero,
+                end = Offset(size.width, size.height)
+            )
+        )
+        val minorRoad = Color(0xFF52749E).copy(alpha = .52f)
+        for (index in 0..8) {
+            val x = size.width * index / 8f
+            drawLine(minorRoad, Offset(x, 0f), Offset((x - size.width * .12f).coerceAtLeast(0f), size.height), 1.dp.toPx())
+        }
+        for (index in 0..6) {
+            val y = size.height * index / 6f
+            drawLine(minorRoad, Offset(0f, y), Offset(size.width, y - size.height * .08f), 1.dp.toPx())
+        }
+        val arterial = Path().apply {
+            moveTo(-size.width * .08f, size.height * .72f)
+            quadraticTo(size.width * .48f, size.height * .36f, size.width * 1.08f, size.height * .48f)
+        }
+        drawPath(arterial, Color(0xFF6A9DD5).copy(alpha = .62f), style = Stroke(6.dp.toPx()))
+        drawPath(arterial, Color(0xFFC4DCFA).copy(alpha = .35f), style = Stroke(1.dp.toPx()))
+        val route = Path().apply {
+            moveTo(size.width * .18f, size.height * 1.08f)
+            quadraticTo(size.width * .3f, size.height * .55f, size.width * .76f, -size.height * .12f)
+        }
+        drawPath(route, Color(0xFF4C83C6).copy(alpha = .56f), style = Stroke(4.dp.toPx()))
+        drawCircle(Color(0xFF5C9BFF).copy(alpha = .16f), 40.dp.toPx(), Offset(size.width * .67f, size.height * .42f))
+        drawCircle(Color(0xFF72B5FF).copy(alpha = .18f), 1.dp.toPx(), Offset(size.width * .67f, size.height * .42f), style = Stroke(1.dp.toPx()))
     }
 }
 

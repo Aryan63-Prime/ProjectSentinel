@@ -51,7 +51,7 @@ fun LogsViewerDialog(
                                 text = line,
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 12.sp,
-                                color = Color(0xFF00E5FF)
+                                color = Color(0xFFAAC7E8)
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                         }

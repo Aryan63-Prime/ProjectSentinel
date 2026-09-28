@@ -99,16 +99,22 @@ class DeviceRepositoryImpl(
 
             val response = deviceApi.getDevices("Bearer $token")
             val deviceList = response.devices.map { it.toDomain() }
-                .filter { it.registered }  // Exclude admin's own session (unregistered)
+                .filter { it.registered && it.deviceId.isNotBlank() }
 
-            // Populate the live map from REST snapshot
-            val deviceMap = deviceList.associateBy { it.deviceId }
+            // Populate live map from REST snapshot deduplicated by physical deviceId
+            val deviceMap = LinkedHashMap<String, Device>()
+            for (dev in deviceList) {
+                val existing = deviceMap[dev.deviceId]
+                if (existing == null || (existing.deviceName.isBlank() && dev.deviceName.isNotBlank())) {
+                    deviceMap[dev.deviceId] = dev
+                }
+            }
             _devices.value = deviceMap
             // Reset sequence tracking on full refresh
             lastSequence.clear()
             _eventStatistics.update { it.copy(reconnectResyncs = it.reconnectResyncs + 1) }
 
-            Result.success(deviceList)
+            Result.success(deviceMap.values.toList())
         } catch (e: HttpException) {
             Result.failure(mapHttpError(e))
         } catch (e: IOException) {
@@ -126,10 +132,27 @@ class DeviceRepositoryImpl(
             val dto = deviceApi.getDevice("Bearer $token", deviceId)
             val device = dto.toDomain()
 
-            // Update live map with single device refresh
-            _devices.update { current -> current + (deviceId to device) }
+            // Update live map with single device refresh, safely preserving established name/model if server returned blank
+            _devices.update { current ->
+                val existing = current[deviceId]
+                val merged = if (existing != null && existing.registered && !device.registered) {
+                    existing.copy(
+                        heartbeatStatus = device.heartbeatStatus,
+                        lastHeartbeat = if (device.lastHeartbeat.isNotBlank()) device.lastHeartbeat else existing.lastHeartbeat,
+                        latestLocation = device.latestLocation ?: existing.latestLocation
+                    )
+                } else if (existing != null && device.deviceName.isBlank() && existing.deviceName.isNotBlank()) {
+                    device.copy(
+                        deviceName = existing.deviceName,
+                        model = existing.model.ifBlank { device.model }
+                    )
+                } else {
+                    device
+                }
+                current + (deviceId to merged)
+            }
 
-            Result.success(device)
+            Result.success(_devices.value[deviceId] ?: device)
         } catch (e: HttpException) {
             Result.failure(mapHttpError(e))
         } catch (e: IOException) {
@@ -206,9 +229,11 @@ class DeviceRepositoryImpl(
                     val existing = current[event.deviceId]
                     val patched = existing?.copy(
                         heartbeatStatus = "online",
-                        deviceName = event.deviceName ?: existing.deviceName,
-                        appVersion = event.appVersion ?: existing.appVersion,
-                        model = event.model ?: existing.model
+                        registered = true,
+                        registrationState = "registered",
+                        deviceName = event.deviceName?.takeIf { it.isNotBlank() } ?: existing.deviceName,
+                        appVersion = event.appVersion?.takeIf { it.isNotBlank() } ?: existing.appVersion,
+                        model = event.model?.takeIf { it.isNotBlank() } ?: existing.model
                     ) ?: createMinimalDevice(event)
                     current + (event.deviceId to patched)
                 }
@@ -303,7 +328,7 @@ class DeviceRepositoryImpl(
             heartbeatStatus = "online",
             connectedAt = "",
             lastHeartbeat = "",
-            deviceName = event.deviceName ?: event.deviceId,
+            deviceName = event.deviceName?.takeIf { it.isNotBlank() } ?: event.deviceId,
             appVersion = event.appVersion ?: "",
             model = event.model ?: "",
             latestLocation = null

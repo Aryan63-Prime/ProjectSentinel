@@ -45,8 +45,9 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             deviceRepository.devices.collect { deviceMap ->
                 if (deviceMap.isNotEmpty()) {
+                    val deduplicated = deviceMap.values.distinctBy { it.deviceId }
                     _uiState.update {
-                        it.copy(devices = deviceMap.values.toList())
+                        it.copy(devices = deduplicated)
                     }
                     applyFilterAndSort()
                 }
@@ -66,9 +67,10 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             deviceRepository.getDevices()
                 .onSuccess { devices ->
+                    val deduplicated = devices.distinctBy { it.deviceId }
                     _uiState.update {
                         it.copy(
-                            devices = devices,
+                            devices = deduplicated,
                             isLoading = false,
                             isRefreshing = false,
                             errorMessage = null
@@ -96,9 +98,10 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             deviceRepository.getDevices()
                 .onSuccess { devices ->
+                    val deduplicated = devices.distinctBy { it.deviceId }
                     _uiState.update {
                         it.copy(
-                            devices = devices,
+                            devices = deduplicated,
                             isRefreshing = false,
                             errorMessage = null
                         )

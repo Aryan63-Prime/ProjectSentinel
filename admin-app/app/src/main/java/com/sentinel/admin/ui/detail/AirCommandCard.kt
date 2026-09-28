@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -56,12 +57,12 @@ fun AirCommandCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF0F172A)
+            containerColor = Color(0xFF121923)
         ),
-        border = BorderStroke(1.dp, Color(0xFF1E293B)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        border = BorderStroke(1.dp, Color(0xFF34465C)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             // Header Row
@@ -69,33 +70,25 @@ fun AirCommandCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF00E5FF).copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.FlashOn,
-                        contentDescription = null,
-                        tint = Color(0xFF00E5FF),
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.FlashOn,
+                    contentDescription = null,
+                    tint = Color(0xFFAAC7E8),
+                    modifier = Modifier.size(20.dp)
+                )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
-                        text = "AIR COMMAND MATRIX",
+                        text = "REMOTE CONTROL",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF94A3B8),
+                        color = Color(0xFFD2DCE7),
                         letterSpacing = 0.8.sp
                     )
                     Text(
                         text = if (isOnline) "Direct Uplink Active" else "Host Offline · Commands Queued",
                         fontSize = 11.sp,
-                        color = if (isOnline) Color(0xFF10B981) else Color(0xFF64748B),
+                        color = if (isOnline) Color(0xFF10B981) else Color(0xFF7D8997),
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -108,7 +101,7 @@ fun AirCommandCard(
                 text = "SURVEILLANCE & RECON",
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF64748B),
+                color = Color(0xFF7D8997),
                 letterSpacing = 0.5.sp
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -121,7 +114,7 @@ fun AirCommandCard(
                     label = "Rear Cam",
                     onClick = { onCapturePhotoClick(false) },
                     enabled = isOnline,
-                    accentColor = Color(0xFF00E5FF),
+                    accentColor = Color(0xFFAAC7E8),
                     modifier = Modifier.weight(1f)
                 )
                 TacticalCommandButton(
@@ -129,7 +122,7 @@ fun AirCommandCard(
                     label = "Front Cam",
                     onClick = { onCapturePhotoClick(true) },
                     enabled = isOnline,
-                    accentColor = Color(0xFF00E5FF),
+                    accentColor = Color(0xFFAAC7E8),
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -143,7 +136,7 @@ fun AirCommandCard(
                     label = "Screen Grab",
                     onClick = onCaptureScreenshotClick,
                     enabled = isOnline,
-                    accentColor = Color(0xFF38BDF8),
+                    accentColor = Color(0xFF8FB2D8),
                     modifier = Modifier.weight(1f)
                 )
                 TacticalCommandButton(
@@ -151,7 +144,7 @@ fun AirCommandCard(
                     label = "Sys Info",
                     onClick = onSystemInfoClick,
                     enabled = isOnline,
-                    accentColor = Color(0xFF38BDF8),
+                    accentColor = Color(0xFF8FB2D8),
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -163,7 +156,7 @@ fun AirCommandCard(
                 text = "LOCKDOWN & DETERRENCE",
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF64748B),
+                color = Color(0xFF7D8997),
                 letterSpacing = 0.5.sp
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -196,7 +189,7 @@ fun AirCommandCard(
                 text = "TELEMETRY & TERMINAL",
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF64748B),
+                color = Color(0xFF7D8997),
                 letterSpacing = 0.5.sp
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -225,7 +218,7 @@ fun AirCommandCard(
                     label = "Shell",
                     onClick = onExecuteShellClick,
                     enabled = isOnline,
-                    accentColor = Color(0xFF00E5FF),
+                    accentColor = Color(0xFFAAC7E8),
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -240,12 +233,12 @@ private fun TacticalCommandButton(
     onClick: () -> Unit,
     enabled: Boolean,
     modifier: Modifier = Modifier,
-    accentColor: Color = Color(0xFF00E5FF),
+    accentColor: Color = Color(0xFFAAC7E8),
     isDestructive: Boolean = false
 ) {
     val activeColor = if (isDestructive) Color(0xFFF43F5E) else accentColor
-    val borderColor = if (enabled) activeColor.copy(alpha = 0.35f) else Color(0xFF1E293B)
-    val bgColor = if (enabled) Color(0xFF0B1120) else Color(0xFF080C14)
+    val borderColor = if (enabled) activeColor.copy(alpha = 0.42f) else Color(0xFF293542)
+    val bgColor = if (enabled) Color(0xFF19232E) else Color(0xFF0B0F14)
     val contentAlpha = if (enabled) 1f else 0.4f
 
     Box(
@@ -253,26 +246,20 @@ private fun TacticalCommandButton(
             .clip(RoundedCornerShape(12.dp))
             .background(bgColor)
             .border(BorderStroke(1.dp, borderColor), RoundedCornerShape(12.dp))
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 10.dp)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp)
             .alpha(contentAlpha)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(activeColor.copy(alpha = if (enabled) 0.15f else 0.05f)),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = if (enabled) activeColor else Color(0xFF64748B),
-                    modifier = Modifier.size(15.dp)
+                    tint = if (enabled) activeColor else Color(0xFF7D8997),
+                    modifier = Modifier.size(18.dp)
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
@@ -280,7 +267,7 @@ private fun TacticalCommandButton(
                 text = label,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (enabled) Color(0xFFF1F5F9) else Color(0xFF64748B),
+                color = if (enabled) Color(0xFFF0F2F4) else Color(0xFF7D8997),
                 maxLines = 1
             )
         }

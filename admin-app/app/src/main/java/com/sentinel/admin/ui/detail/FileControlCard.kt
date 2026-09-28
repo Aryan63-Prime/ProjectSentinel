@@ -26,9 +26,9 @@ fun FileControlCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF0F172A)
+            containerColor = Color(0xFF151B22)
         ),
-        border = BorderStroke(1.dp, Color(0xFF1E293B)),
+        border = BorderStroke(1.dp, Color(0xFF293542)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -41,14 +41,14 @@ fun FileControlCard(
                     modifier = Modifier
                         .size(28.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF00E5FF).copy(alpha = 0.15f)),
+                        .background(Color(0xFFAAC7E8).copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.FolderOpen,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
-                        tint = Color(0xFF00E5FF)
+                        tint = Color(0xFFAAC7E8)
                     )
                 }
                 Spacer(modifier = Modifier.width(8.dp))
@@ -57,7 +57,7 @@ fun FileControlCard(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.8.sp,
-                    color = Color(0xFF38BDF8)
+                    color = Color(0xFF8FB2D8)
                 )
             }
 
@@ -66,7 +66,7 @@ fun FileControlCard(
             Text(
                 text = "Inspect filesystem tree, stream downloads, and audit local evidence files on target storage.",
                 fontSize = 12.sp,
-                color = Color(0xFF94A3B8)
+                color = Color(0xFF9AA7B6)
             )
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -75,10 +75,10 @@ fun FileControlCard(
                 onClick = onFilesClick,
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF083344),
-                    contentColor = Color(0xFF00E5FF)
+                    containerColor = Color(0xFF283847),
+                    contentColor = Color(0xFFAAC7E8)
                 ),
-                border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.35f)),
+                border = BorderStroke(1.dp, Color(0xFFAAC7E8).copy(alpha = 0.35f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(

@@ -117,7 +117,12 @@ class DeviceDetailViewModel @Inject constructor(
     }
 
     fun loadDevice() {
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        val cached = deviceRepository.devices.value[deviceId]
+        if (cached != null) {
+            _uiState.update { it.copy(device = cached, isLoading = false, errorMessage = null) }
+        } else {
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        }
         viewModelScope.launch {
             deviceRepository.getDevice(deviceId)
                 .onSuccess { device ->
@@ -135,7 +140,7 @@ class DeviceDetailViewModel @Inject constructor(
                         it.copy(
                             isLoading = false,
                             isRefreshing = false,
-                            errorMessage = error.message ?: "Failed to load device"
+                            errorMessage = if (cached != null) null else (error.message ?: "Failed to load device")
                         )
                     }
                 }

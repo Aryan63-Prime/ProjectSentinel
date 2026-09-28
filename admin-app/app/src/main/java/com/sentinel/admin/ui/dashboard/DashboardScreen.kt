@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,9 +15,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -62,14 +66,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import com.sentinel.admin.domain.model.Device
+import com.sentinel.admin.ui.DeviceArtwork
+import com.sentinel.admin.ui.FleetOrb
 
 /**
  * Dashboard screen displaying monitored devices.
@@ -92,9 +104,10 @@ fun DashboardScreen(
     modifier: Modifier = Modifier
 ) {
     var sortMenuExpanded by remember { mutableStateOf(false) }
+    val onlineCount = uiState.devices.count { it.heartbeatStatus == "online" }
 
     Scaffold(
-        containerColor = Color(0xFF080C14),
+        containerColor = Color(0xFF0B0F14),
         topBar = {
             TopAppBar(
                 title = {
@@ -103,7 +116,7 @@ fun DashboardScreen(
                             modifier = Modifier
                                 .size(10.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF00E5FF))
+                                .background(Color(0xFFAAC7E8))
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
@@ -112,32 +125,32 @@ fun DashboardScreen(
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Black,
                                 letterSpacing = 1.5.sp,
-                                color = Color(0xFFF1F5F9)
+                                color = Color(0xFFF0F2F4)
                             )
                             Text(
                                 text = "COMMAND CENTER",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp,
-                                color = Color(0xFF00E5FF)
+                                color = Color(0xFFAAC7E8)
                             )
                         }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF080C14),
-                    titleContentColor = Color(0xFFF1F5F9),
-                    actionIconContentColor = Color(0xFF94A3B8)
+                    containerColor = Color(0xFF0B0F14),
+                    titleContentColor = Color(0xFFF0F2F4),
+                    actionIconContentColor = Color(0xFF9AA7B6)
                 ),
                 actions = {
                     // Recordings Gallery
                     IconButton(onClick = onRecordingsClick) {
-                        Icon(Icons.Default.Mic, contentDescription = "Saved Recordings", tint = Color(0xFF38BDF8))
+                        Icon(Icons.Default.Mic, contentDescription = "Saved Recordings", tint = Color(0xFF8FB2D8))
                     }
                     // Sort
                     Box {
                         IconButton(onClick = { sortMenuExpanded = true }) {
-                            Icon(Icons.Default.Sort, contentDescription = "Sort", tint = Color(0xFF94A3B8))
+                            Icon(Icons.Default.Sort, contentDescription = "Sort", tint = Color(0xFF9AA7B6))
                         }
                         DropdownMenu(
                             expanded = sortMenuExpanded,
@@ -171,12 +184,12 @@ fun DashboardScreen(
                         Icon(
                             if (uiState.viewMode == ViewMode.LIST) Icons.Default.Map else Icons.Default.ViewList,
                             contentDescription = if (uiState.viewMode == ViewMode.LIST) "Map view" else "List view",
-                            tint = Color(0xFF00E5FF)
+                            tint = Color(0xFFAAC7E8)
                         )
                     }
                     // Refresh
                     IconButton(onClick = onRefresh) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color(0xFF94A3B8))
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color(0xFF9AA7B6))
                     }
                 }
             )
@@ -188,6 +201,12 @@ fun DashboardScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+            FleetOverviewCard(
+                total = uiState.devices.size,
+                online = onlineCount,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+
             // Search bar
             SearchBar(
                 query = uiState.searchQuery,
@@ -202,7 +221,7 @@ fun DashboardScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 FleetFilter.entries.forEach { filter ->
                     val count = when (filter) {
@@ -212,30 +231,28 @@ fun DashboardScreen(
                         FleetFilter.EMERGENCY -> uiState.devices.count { (it.latestLocation?.battery ?: 100) <= 15 }
                     }
                     val isSelected = uiState.fleetFilter == filter
-                    androidx.compose.material3.FilterChip(
-                        selected = isSelected,
-                        onClick = { onFleetFilterChanged(filter) },
-                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
-                            containerColor = Color(0xFF0F172A),
-                            labelColor = Color(0xFF94A3B8),
-                            selectedContainerColor = Color(0xFF083344),
-                            selectedLabelColor = Color(0xFF00E5FF)
-                        ),
-                        border = androidx.compose.material3.FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = isSelected,
-                            borderColor = Color(0xFF1E293B),
-                            selectedBorderColor = Color(0xFF00E5FF)
-                        ),
-                        shape = RoundedCornerShape(10.dp),
-                        label = {
-                            Text(
-                                text = "${filter.label} ($count)",
-                                fontSize = 12.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(36.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isSelected) Color(0xFF283847) else Color(0xFF151B22))
+                            .border(
+                                1.dp,
+                                if (isSelected) Color(0xFFAAC7E8).copy(alpha = 0.62f) else Color(0xFF293542),
+                                RoundedCornerShape(10.dp)
                             )
-                        }
-                    )
+                            .clickable { onFleetFilterChanged(filter) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "${filter.label} $count",
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) Color(0xFFAAC7E8) else Color(0xFF9AA7B6)
+                        )
+                    }
                 }
             }
 
@@ -289,7 +306,7 @@ fun DashboardScreen(
                             ) {
                                 items(
                                     items = uiState.displayDevices,
-                                    key = { it.connectionId }
+                                    key = { it.deviceId }
                                 ) { device ->
                                     DeviceCard(
                                         device = device,
@@ -306,6 +323,102 @@ fun DashboardScreen(
 }
 
 // ============================================================
+// Fleet Overview
+// ============================================================
+
+@Composable
+private fun FleetOverviewCard(
+    total: Int,
+    online: Int,
+    modifier: Modifier = Modifier
+) {
+    val offline = (total - online).coerceAtLeast(0)
+    val shape = RoundedCornerShape(24.dp)
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(178.dp)
+            .shadow(10.dp, shape, ambientColor = Color(0xFF52708F).copy(alpha = .14f))
+            .clip(shape)
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(Color(0xFF18212A), Color(0xFF11171E), Color(0xFF1C252E))
+                )
+            )
+            .border(
+                width = 1.dp,
+                brush = Brush.linearGradient(listOf(Color(0xFF52677D).copy(alpha = .5f), Color(0xFF293542), Color(0xFF293542))),
+                shape = shape
+            )
+    ) {
+        FleetOrb(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .size(112.dp)
+                .alpha(.14f)
+                .offset(x = 12.dp, y = (-5).dp)
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 18.dp, vertical = 16.dp)
+        ) {
+            Text(
+                text = "FLEET STATUS",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.1.sp,
+                color = Color(0xFFB7C9DD)
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "$online / $total",
+                fontSize = 30.sp,
+                lineHeight = 34.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFF0F2F4)
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(if (online > 0) Color(0xFF39E4B7) else Color(0xFF7487A8))
+                )
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    text = if (online == total && total > 0) "All devices online" else "$online devices reporting",
+                    fontSize = 12.sp,
+                    color = Color(0xFFABC0DF)
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .padding(top = 7.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF0C1218).copy(alpha = .72f))
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                FleetMetric("TOTAL DEVICES", total.toString(), Color(0xFF75B8FF))
+                FleetMetric("ONLINE", online.toString(), Color(0xFF41E1B6))
+                FleetMetric("OFFLINE", offline.toString(), Color(0xFF899AB8))
+            }
+        }
+    }
+}
+
+@Composable
+private fun FleetMetric(label: String, value: String, tint: Color) {
+    Column {
+        Text(label, fontSize = 8.sp, letterSpacing = .7.sp, fontWeight = FontWeight.Bold, color = Color(0xFF778BAA))
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(value, fontSize = 17.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold, color = tint)
+    }
+}
+
+// ============================================================
 // Search Bar
 // ============================================================
 
@@ -318,23 +431,23 @@ private fun SearchBar(
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChanged,
-        placeholder = { Text("Search units by name or ID…", color = Color(0xFF64748B), fontSize = 13.sp) },
-        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(18.dp)) },
+        placeholder = { Text("Search units by name or ID…", color = Color(0xFF7D8997), fontSize = 13.sp) },
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFFAAC7E8), modifier = Modifier.size(18.dp)) },
         trailingIcon = {
             if (query.isNotEmpty()) {
                 IconButton(onClick = { onQueryChanged("") }) {
-                    Icon(Icons.Default.Close, contentDescription = "Clear search", tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Close, contentDescription = "Clear search", tint = Color(0xFF9AA7B6), modifier = Modifier.size(18.dp))
                 }
             }
         },
         singleLine = true,
         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = Color(0xFF0F172A),
-            unfocusedContainerColor = Color(0xFF0F172A),
-            focusedBorderColor = Color(0xFF00E5FF),
-            unfocusedBorderColor = Color(0xFF1E293B),
-            focusedTextColor = Color(0xFFF1F5F9),
-            unfocusedTextColor = Color(0xFFF1F5F9)
+            focusedContainerColor = Color(0xFF151B22),
+            unfocusedContainerColor = Color(0xFF151B22),
+            focusedBorderColor = Color(0xFFAAC7E8),
+            unfocusedBorderColor = Color(0xFF293542),
+            focusedTextColor = Color(0xFFF0F2F4),
+            unfocusedTextColor = Color(0xFFF0F2F4)
         ),
         shape = RoundedCornerShape(14.dp),
         modifier = modifier
@@ -353,22 +466,43 @@ private fun DeviceCard(
 ) {
     val isOnline = device.heartbeatStatus == "online"
     val loc = device.latestLocation
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.988f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "deviceCardPressScale"
+    )
+    val pressTilt by animateFloatAsState(
+        targetValue = if (pressed) 0.3f else 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "deviceCardPressTilt"
+    )
 
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+                rotationY = pressTilt
+                cameraDistance = 18 * density
+            }
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF0F172A)
+            containerColor = Color(0xFF151B22)
         ),
-        border = BorderStroke(1.dp, if (isOnline) Color(0x3300E5FF) else Color(0xFF1E293B)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        border = BorderStroke(1.dp, if (isOnline) Color(0x3300E5FF) else Color(0xFF293542)),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 2.dp,
+            pressedElevation = 7.dp
+        )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(horizontal = 14.dp, vertical = 14.dp)
         ) {
             // Header row: Icon + name + model + online badge
             Row(
@@ -380,47 +514,40 @@ private fun DeviceCard(
                     modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(if (isOnline) Color(0x1F00E5FF) else Color(0xFF1E293B)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DevicesOther,
-                            contentDescription = null,
-                            tint = if (isOnline) Color(0xFF00E5FF) else Color(0xFF94A3B8),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
+                    DeviceArtwork(
+                        modifier = Modifier.padding(end = 12.dp),
+                        width = 48.dp,
+                        height = 66.dp,
+                        model = "${device.model} ${device.deviceName}"
+                    )
+                    val displayName = device.deviceName.ifBlank { device.model.ifBlank { "Unit ${device.deviceId}" } }
+                    val displayModel = device.model.ifBlank { "Mobile Unit" }
                     Column {
                         Text(
-                            text = device.deviceName,
-                            style = MaterialTheme.typography.titleMedium,
+                            text = displayName,
+                            style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFF1F5F9),
+                            color = Color(0xFFF0F2F4),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = device.model,
+                                text = displayModel,
                                 fontSize = 11.sp,
-                                color = Color(0xFF38BDF8),
+                                color = Color(0xFF8FB2D8),
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
                                 text = " · ",
                                 fontSize = 11.sp,
-                                color = Color(0xFF64748B)
+                                color = Color(0xFF7D8997)
                             )
                             Text(
                                 text = device.deviceId,
                                 fontSize = 11.sp,
                                 fontFamily = FontFamily.Monospace,
-                                color = Color(0xFF64748B)
+                                color = Color(0xFF7D8997)
                             )
                         }
                     }
@@ -438,28 +565,28 @@ private fun DeviceCard(
                         modifier = Modifier
                             .size(7.dp)
                             .clip(CircleShape)
-                            .background(if (isOnline) Color(0xFF10B981) else Color(0xFF64748B))
+                            .background(if (isOnline) Color(0xFF10B981) else Color(0xFF7D8997))
                     )
                     Spacer(modifier = Modifier.width(5.dp))
                     Text(
                         text = if (isOnline) "ONLINE" else "OFFLINE",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isOnline) Color(0xFF10B981) else Color(0xFF94A3B8),
+                        color = if (isOnline) Color(0xFF10B981) else Color(0xFF9AA7B6),
                         letterSpacing = 0.5.sp
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Telemetry Inset Micro-Tiles
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF080C14))
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .background(Color(0xFF0B0F14))
+                    .padding(horizontal = 12.dp, vertical = 9.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -477,7 +604,7 @@ private fun DeviceCard(
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.5.sp,
-                        color = Color(0xFF64748B)
+                        color = Color(0xFF7D8997)
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -505,14 +632,14 @@ private fun DeviceCard(
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.5.sp,
-                        color = Color(0xFF64748B)
+                        color = Color(0xFF7D8997)
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = if (cleanNetwork.contains("WiFi", ignoreCase = true)) Icons.Default.Wifi else Icons.Default.NetworkCell,
                             contentDescription = null,
-                            tint = Color(0xFF38BDF8),
+                            tint = Color(0xFF8FB2D8),
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(modifier = Modifier.width(3.dp))
@@ -520,7 +647,7 @@ private fun DeviceCard(
                             text = cleanNetwork,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFFF1F5F9),
+                            color = Color(0xFFF0F2F4),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -534,14 +661,14 @@ private fun DeviceCard(
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.5.sp,
-                        color = Color(0xFF64748B)
+                        color = Color(0xFF7D8997)
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Default.LocationOn,
                             contentDescription = null,
-                            tint = Color(0xFF00E5FF),
+                            tint = Color(0xFFAAC7E8),
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(modifier = Modifier.width(3.dp))
@@ -549,7 +676,7 @@ private fun DeviceCard(
                             text = if (loc != null) "±${loc.accuracy.toInt()}m" else "No Fix",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = if (loc != null) Color(0xFF00E5FF) else Color(0xFF64748B)
+                            color = if (loc != null) Color(0xFFAAC7E8) else Color(0xFF7D8997)
                         )
                     }
                 }
@@ -568,13 +695,13 @@ private fun DeviceCard(
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.5.sp,
-                    color = Color(0xFF64748B)
+                    color = Color(0xFF7D8997)
                 )
                 Text(
                     text = "HEARTBEAT: ${formatTimestamp(device.lastHeartbeat)}",
                     fontSize = 10.sp,
                     fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF94A3B8)
+                    color = Color(0xFF9AA7B6)
                 )
             }
         }

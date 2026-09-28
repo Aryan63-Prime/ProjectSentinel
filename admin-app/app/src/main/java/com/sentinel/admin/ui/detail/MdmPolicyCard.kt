@@ -37,9 +37,9 @@ fun MdmPolicyCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF0F172A)
+            containerColor = Color(0xFF151B22)
         ),
-        border = BorderStroke(1.dp, Color(0xFF1E293B)),
+        border = BorderStroke(1.dp, Color(0xFF293542)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -54,13 +54,13 @@ fun MdmPolicyCard(
                         modifier = Modifier
                             .size(28.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF00E5FF).copy(alpha = 0.15f)),
+                            .background(Color(0xFFAAC7E8).copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Security,
                             contentDescription = null,
-                            tint = Color(0xFF00E5FF),
+                            tint = Color(0xFFAAC7E8),
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -70,7 +70,7 @@ fun MdmPolicyCard(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.8.sp,
-                        color = Color(0xFF38BDF8)
+                        color = Color(0xFF8FB2D8)
                     )
                 }
 
@@ -82,7 +82,7 @@ fun MdmPolicyCard(
                     Icon(
                         Icons.Default.Refresh,
                         contentDescription = "Refresh MDM",
-                        tint = Color(0xFF94A3B8),
+                        tint = Color(0xFF9AA7B6),
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -100,8 +100,8 @@ fun MdmPolicyCard(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF080C14))
-                        .border(BorderStroke(1.dp, Color(0xFF1E293B)), RoundedCornerShape(10.dp))
+                        .background(Color(0xFF0B0F14))
+                        .border(BorderStroke(1.dp, Color(0xFF293542)), RoundedCornerShape(10.dp))
                         .padding(horizontal = 10.dp, vertical = 8.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -109,14 +109,14 @@ fun MdmPolicyCard(
                             modifier = Modifier
                                 .size(7.dp)
                                 .clip(CircleShape)
-                                .background(if (isDeviceAdminActive) Color(0xFF10B981) else Color(0xFF64748B))
+                                .background(if (isDeviceAdminActive) Color(0xFF10B981) else Color(0xFF7D8997))
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = if (isDeviceAdminActive) "ADMIN ACTIVE" else "ADMIN OFF",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isDeviceAdminActive) Color(0xFF10B981) else Color(0xFF64748B),
+                            color = if (isDeviceAdminActive) Color(0xFF10B981) else Color(0xFF7D8997),
                             letterSpacing = 0.5.sp
                         )
                     }
@@ -127,8 +127,8 @@ fun MdmPolicyCard(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF080C14))
-                        .border(BorderStroke(1.dp, Color(0xFF1E293B)), RoundedCornerShape(10.dp))
+                        .background(Color(0xFF0B0F14))
+                        .border(BorderStroke(1.dp, Color(0xFF293542)), RoundedCornerShape(10.dp))
                         .padding(horizontal = 10.dp, vertical = 8.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -136,14 +136,14 @@ fun MdmPolicyCard(
                             modifier = Modifier
                                 .size(7.dp)
                                 .clip(CircleShape)
-                                .background(if (isDeviceOwner) Color(0xFF00E5FF) else Color(0xFF64748B))
+                                .background(if (isDeviceOwner) Color(0xFFAAC7E8) else Color(0xFF7D8997))
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = if (isDeviceOwner) "DEVICE OWNER" else "PROFILE USER",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isDeviceOwner) Color(0xFF00E5FF) else Color(0xFF64748B),
+                            color = if (isDeviceOwner) Color(0xFFAAC7E8) else Color(0xFF7D8997),
                             letterSpacing = 0.5.sp
                         )
                     }
@@ -182,9 +182,9 @@ fun MdmPolicyCard(
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color(0xFFF1F5F9)
+                        contentColor = Color(0xFFF0F2F4)
                     ),
-                    border = BorderStroke(1.dp, Color(0xFF1E293B))
+                    border = BorderStroke(1.dp, Color(0xFF293542))
                 ) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color(0xFF10B981))
                     Spacer(modifier = Modifier.width(6.dp))
@@ -199,8 +199,8 @@ fun MdmPolicyCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF080C14))
-                    .border(BorderStroke(1.dp, Color(0xFF1E293B)), RoundedCornerShape(12.dp))
+                    .background(Color(0xFF0B0F14))
+                    .border(BorderStroke(1.dp, Color(0xFF293542)), RoundedCornerShape(12.dp))
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 Row(
@@ -212,7 +212,7 @@ fun MdmPolicyCard(
                         Icon(
                             imageVector = Icons.Default.Shield,
                             contentDescription = null,
-                            tint = if (isAntiTamperEnabled) Color(0xFF00E5FF) else Color(0xFF64748B),
+                            tint = if (isAntiTamperEnabled) Color(0xFFAAC7E8) else Color(0xFF7D8997),
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
@@ -221,12 +221,12 @@ fun MdmPolicyCard(
                                 text = "Anti-Tamper Protection",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFFF1F5F9)
+                                color = Color(0xFFF0F2F4)
                             )
                             Text(
                                 text = "Blocks unauthorized package uninstallation",
                                 fontSize = 10.sp,
-                                color = Color(0xFF64748B)
+                                color = Color(0xFF7D8997)
                             )
                         }
                     }
@@ -236,10 +236,10 @@ fun MdmPolicyCard(
                         onCheckedChange = { onToggleAntiTamper(it) },
                         enabled = isOnline,
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color(0xFF00E5FF),
-                            checkedTrackColor = Color(0xFF083344),
-                            uncheckedThumbColor = Color(0xFF64748B),
-                            uncheckedTrackColor = Color(0xFF1E293B)
+                            checkedThumbColor = Color(0xFFAAC7E8),
+                            checkedTrackColor = Color(0xFF283847),
+                            uncheckedThumbColor = Color(0xFF7D8997),
+                            uncheckedTrackColor = Color(0xFF293542)
                         )
                     )
                 }
@@ -252,8 +252,8 @@ fun MdmPolicyCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF083344))
-                        .border(BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.4f)), RoundedCornerShape(10.dp))
+                        .background(Color(0xFF283847))
+                        .border(BorderStroke(1.dp, Color(0xFFAAC7E8).copy(alpha = 0.4f)), RoundedCornerShape(10.dp))
                         .padding(horizontal = 12.dp, vertical = 8.dp)
                 ) {
                     Row(
@@ -275,7 +275,7 @@ fun MdmPolicyCard(
                             Icon(
                                 Icons.Default.Close,
                                 contentDescription = "Dismiss",
-                                tint = Color(0xFF00E5FF),
+                                tint = Color(0xFFAAC7E8),
                                 modifier = Modifier.size(14.dp)
                             )
                         }

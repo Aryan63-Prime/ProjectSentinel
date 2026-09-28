@@ -88,10 +88,10 @@ func (s *Service) ListDevices(ctx context.Context) ([]Device, error) {
 	}
 
 	snapshots := s.sessions.ListSessions()
-	devices := make([]Device, 0, len(snapshots))
+	deviceMap := make(map[string]Device)
 
 	for _, snapshot := range snapshots {
-		if strings.TrimSpace(snapshot.DeviceID) == "" {
+		if strings.TrimSpace(snapshot.DeviceID) == "" || !snapshot.Registered {
 			continue
 		}
 
@@ -100,6 +100,17 @@ func (s *Service) ListDevices(ctx context.Context) ([]Device, error) {
 			return nil, err
 		}
 
+		if existing, ok := deviceMap[snapshot.DeviceID]; ok {
+			if snapshot.ConnectedAt.After(existing.ConnectedAt) {
+				deviceMap[snapshot.DeviceID] = device
+			}
+		} else {
+			deviceMap[snapshot.DeviceID] = device
+		}
+	}
+
+	devices := make([]Device, 0, len(deviceMap))
+	for _, device := range deviceMap {
 		devices = append(devices, device)
 	}
 

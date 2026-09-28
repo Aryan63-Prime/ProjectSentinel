@@ -438,7 +438,7 @@ fun DashboardMapView(
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "FLEET RADAR",
-                    color = Color(0xFF00E5FF),
+                    color = Color(0xFFAAC7E8),
                     fontWeight = FontWeight.Bold,
                     fontSize = 11.sp,
                     letterSpacing = 0.5.sp
@@ -446,7 +446,7 @@ fun DashboardMapView(
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "· ${markers.size} UNITS",
-                    color = Color(0xFF94A3B8),
+                    color = Color(0xFF9AA7B6),
                     fontWeight = FontWeight.Medium,
                     fontSize = 11.sp
                 )
@@ -467,13 +467,13 @@ fun DashboardMapView(
                 Icon(
                     imageVector = Icons.Default.LocationOn,
                     contentDescription = "Open in Maps",
-                    tint = Color(0xFF00E5FF),
+                    tint = Color(0xFFAAC7E8),
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "Open Google Maps ↗",
-                    color = Color(0xFFF1F5F9),
+                    color = Color(0xFFF0F2F4),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )

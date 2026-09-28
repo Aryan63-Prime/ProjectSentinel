@@ -123,7 +123,7 @@ func TestServiceGetDeviceRejectsMissingDeviceID(t *testing.T) {
 func TestServiceReturnsLocationReaderError(t *testing.T) {
 	expected := errors.New("redis unavailable")
 	source := &fakeSessionSource{
-		sessions: []SessionSnapshot{{DeviceID: "HOST-0001"}},
+		sessions: []SessionSnapshot{{DeviceID: "HOST-0001", Registered: true}},
 	}
 	service := NewService(source, &fakeLocationReader{err: expected}, fakeHeartbeatPolicy{})
 
