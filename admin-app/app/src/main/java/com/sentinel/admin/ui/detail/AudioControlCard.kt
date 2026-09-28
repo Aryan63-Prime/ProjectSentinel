@@ -41,6 +41,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.sentinel.admin.domain.model.AudioStatistics
 import com.sentinel.admin.domain.model.PlaybackState
 
@@ -69,11 +70,12 @@ fun AudioControlCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = Color(0xFF0F172A)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier
@@ -85,42 +87,66 @@ fun AudioControlCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Audio Monitor",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF00E5FF).copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Hearing,
+                            contentDescription = null,
+                            tint = Color(0xFF00E5FF),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "AUDIO SURVEILLANCE & PTT",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp,
+                        color = Color(0xFF38BDF8)
+                    )
+                }
 
                 if (isRecording) {
                     val seconds = (recordingDurationMs / 1000) % 60
                     val minutes = (recordingDurationMs / (1000 * 60)) % 60
                     val timeStr = String.format(java.util.Locale.US, "%02d:%02d", minutes, seconds)
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFF43F5E).copy(alpha = 0.2f))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
                         Box(
                             modifier = Modifier
-                                .size(10.dp)
+                                .size(8.dp)
                                 .clip(CircleShape)
-                                .background(Color.Red)
+                                .background(Color(0xFFF43F5E))
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "REC $timeStr",
-                            style = MaterialTheme.typography.bodySmall,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.Red
+                            color = Color(0xFFF43F5E)
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Status indicator
             PlaybackStatusIndicator(playbackState = playbackState)
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Controls
             Row(
@@ -133,10 +159,12 @@ fun AudioControlCard(
 
                 Button(
                     onClick = onListenClick,
-                    enabled = !isActive,
+                    enabled = !isActive && isOnline,
                     modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
+                        containerColor = Color(0xFF00E5FF),
+                        contentColor = Color(0xFF00363D)
                     )
                 ) {
                     Icon(
@@ -145,15 +173,17 @@ fun AudioControlCard(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Listen")
+                    Text("Listen", fontWeight = FontWeight.Bold)
                 }
 
                 Button(
                     onClick = onRecordToggle,
-                    enabled = isActive || isRecording,
+                    enabled = (isActive || isRecording) && isOnline,
                     modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isRecording) Color.Red else MaterialTheme.colorScheme.tertiary
+                        containerColor = if (isRecording) Color(0xFFF43F5E) else Color(0xFF0284C7),
+                        contentColor = Color.White
                     )
                 ) {
                     Icon(
@@ -162,13 +192,18 @@ fun AudioControlCard(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(if (isRecording) "Stop REC" else "REC")
+                    Text(if (isRecording) "Stop REC" else "Record", fontWeight = FontWeight.Bold)
                 }
 
                 OutlinedButton(
                     onClick = onStopClick,
                     enabled = isActive || playbackState is PlaybackState.Paused,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color(0xFFF1F5F9)
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
                 ) {
                     Icon(
                         imageVector = Icons.Default.Stop,
@@ -176,7 +211,7 @@ fun AudioControlCard(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Stop")
+                    Text("Stop", fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -229,58 +264,64 @@ private fun PlaybackStatusIndicator(playbackState: PlaybackState) {
     ) {
         when (playbackState) {
             is PlaybackState.Idle, is PlaybackState.Stopped -> {
-                StatusDot(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
+                StatusDot(color = Color(0xFF64748B))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    "Not listening",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    "Monitoring standby",
+                    fontSize = 12.sp,
+                    color = Color(0xFF64748B),
+                    fontWeight = FontWeight.Medium
                 )
             }
             is PlaybackState.Connecting -> {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = Color(0xFF00E5FF))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    "Connecting…",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    "Establishing uplink…",
+                    fontSize = 12.sp,
+                    color = Color(0xFF00E5FF),
+                    fontWeight = FontWeight.SemiBold
                 )
             }
             is PlaybackState.Buffering -> {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = Color(0xFFF59E0B))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    "Buffering…",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.tertiary
+                    "Buffering audio frames…",
+                    fontSize = 12.sp,
+                    color = Color(0xFFF59E0B),
+                    fontWeight = FontWeight.SemiBold
                 )
             }
             is PlaybackState.Playing -> {
                 PulsingDot()
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    "Playing",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF4CAF50) // Green
+                    "LIVE AUDIO STREAMING",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF10B981),
+                    letterSpacing = 0.5.sp
                 )
             }
             is PlaybackState.Paused -> {
-                StatusDot(color = MaterialTheme.colorScheme.tertiary)
+                StatusDot(color = Color(0xFFF59E0B))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    "Paused (connection lost)",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.tertiary
+                    "Paused (connection drop)",
+                    fontSize = 12.sp,
+                    color = Color(0xFFF59E0B),
+                    fontWeight = FontWeight.Medium
                 )
             }
             is PlaybackState.Error -> {
-                StatusDot(color = MaterialTheme.colorScheme.error)
+                StatusDot(color = Color(0xFFF43F5E))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     "Error: ${playbackState.message}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error
+                    fontSize = 12.sp,
+                    color = Color(0xFFF43F5E),
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }
@@ -291,7 +332,7 @@ private fun PlaybackStatusIndicator(playbackState: PlaybackState) {
 private fun StatusDot(color: Color) {
     Box(
         modifier = Modifier
-            .size(12.dp)
+            .size(8.dp)
             .clip(CircleShape)
             .background(color)
     )
@@ -312,22 +353,30 @@ private fun PulsingDot() {
 
     Box(
         modifier = Modifier
-            .size(12.dp)
+            .size(9.dp)
             .alpha(alpha)
             .clip(CircleShape)
-            .background(Color(0xFF4CAF50))
+            .background(Color(0xFF10B981))
     )
 }
 
 @Composable
 private fun AudioStatsSection(audioStats: AudioStatistics) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF080C14))
+            .padding(12.dp)
+    ) {
         Text(
-            text = "Statistics",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            text = "OPUS TELEMETRY STREAM",
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.8.sp,
+            color = Color(0xFF64748B)
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(6.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
@@ -337,7 +386,7 @@ private fun AudioStatsSection(audioStats: AudioStatistics) {
             StatItem("Dropped", "${audioStats.framesDropped}")
             StatItem("PLC", "${audioStats.plcFrames}")
         }
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(6.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
@@ -355,13 +404,16 @@ private fun StatItem(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = value,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.SemiBold
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            color = Color(0xFFF1F5F9)
         )
         Text(
             text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            fontSize = 9.sp,
+            color = Color(0xFF64748B),
+            fontWeight = FontWeight.Medium
         )
     }
 }

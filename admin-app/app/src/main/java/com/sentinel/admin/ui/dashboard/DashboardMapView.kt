@@ -1,33 +1,48 @@
 package com.sentinel.admin.ui.dashboard
 
+import android.annotation.SuppressLint
+import android.content.Intent
+import android.net.Uri
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOff
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import android.annotation.SuppressLint
-import android.webkit.JavascriptInterface
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 
 /**
- * Map view for the Dashboard showing all device markers using Leaflet.js and OpenStreetMap.
+ * Map view for the Dashboard showing all device markers using Leaflet.js and CartoDB Dark Matter.
  *
  * - Auto-fit camera to show all markers
+ * - Tactical clustering with active status badges
  * - Marker click navigates to device detail via JavaScript interface
+ * - Quick action to open fleet coordinates natively in Google Maps
  */
 @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
 @Composable
@@ -39,6 +54,34 @@ fun DashboardMapView(
     if (markers.isEmpty()) {
         NoLocationState(modifier = modifier)
         return
+    }
+
+    val context = LocalContext.current
+
+    fun launchGoogleMapsFleet() {
+        if (markers.isEmpty()) return
+        val centerLat = markers.map { it.latitude }.average()
+        val centerLng = markers.map { it.longitude }.average()
+        val geoUri = "geo:$centerLat,$centerLng?q=$centerLat,$centerLng(Sentinel+Fleet)"
+        val webUri = "https://www.google.com/maps/search/?api=1&query=$centerLat,$centerLng"
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(geoUri)).apply {
+            setPackage("com.google.android.apps.maps")
+        }
+        try {
+            context.startActivity(intent)
+        } catch (_: Exception) {
+            try {
+                val fallbackIntent = Intent(Intent.ACTION_VIEW, Uri.parse(geoUri))
+                context.startActivity(fallbackIntent)
+            } catch (_: Exception) {
+                try {
+                    val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(webUri))
+                    context.startActivity(webIntent)
+                } catch (ex: Exception) {
+                    android.util.Log.e("Sentinel:Map", "Failed to launch maps", ex)
+                }
+            }
+        }
     }
 
     val markersJson = markers.joinToString(separator = ",", prefix = "[", postfix = "]") { marker ->
@@ -59,63 +102,64 @@ fun DashboardMapView(
         """.trimIndent()
     }
 
-    AndroidView(
-        modifier = modifier.fillMaxSize(),
-        factory = { context ->
-            val cssContent = try {
-                context.assets.open("leaflet.css").bufferedReader().use { it.readText() }
-            } catch (e: Exception) {
-                ""
-            }
-            val jsContent = try {
-                context.assets.open("leaflet.js").bufferedReader().use { it.readText() }
-            } catch (e: Exception) {
-                ""
-            }
-
-            WebView(context).apply {
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-                settings.allowFileAccess = true
-                settings.allowContentAccess = true
-                @Suppress("DEPRECATION")
-                settings.allowFileAccessFromFileURLs = true
-                @Suppress("DEPRECATION")
-                settings.allowUniversalAccessFromFileURLs = true
-                settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                webViewClient = object : WebViewClient() {
-                    override fun onPageFinished(view: WebView?, url: String?) {
-                        super.onPageFinished(view, url)
-                        view?.evaluateJavascript(
-                            "if (typeof updateMarkers === 'function') { updateMarkers($markersJson); }",
-                            null
-                        )
-                    }
+    Box(modifier = modifier.fillMaxSize()) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { ctx ->
+                val cssContent = try {
+                    ctx.assets.open("leaflet.css").bufferedReader().use { it.readText() }
+                } catch (e: Exception) {
+                    ""
                 }
-                addJavascriptInterface(object {
-                    @JavascriptInterface
-                    fun onMarkerClick(deviceId: String) {
-                        post {
-                            onMarkerClick(deviceId)
+                val jsContent = try {
+                    ctx.assets.open("leaflet.js").bufferedReader().use { it.readText() }
+                } catch (e: Exception) {
+                    ""
+                }
+
+                WebView(ctx).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.allowFileAccess = true
+                    settings.allowContentAccess = true
+                    @Suppress("DEPRECATION")
+                    settings.allowFileAccessFromFileURLs = true
+                    @Suppress("DEPRECATION")
+                    settings.allowUniversalAccessFromFileURLs = true
+                    settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                    webViewClient = object : WebViewClient() {
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            super.onPageFinished(view, url)
+                            view?.evaluateJavascript(
+                                "if (typeof updateMarkers === 'function') { updateMarkers($markersJson); }",
+                                null
+                            )
                         }
                     }
-                }, "AndroidInterface")
-
-                val html = """
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-                        <style>
-                            $cssContent
-                            html, body { height: 100%; margin: 0; padding: 0; background: #121212; }
-                            #map { position: absolute; top: 0; bottom: 0; left: 0; right: 0; background: #121212; }
-                            .leaflet-container { background: #121212; }
-
-                            .leaflet-div-icon {
-                                background: transparent !important;
-                                border: none !important;
+                    addJavascriptInterface(object {
+                        @JavascriptInterface
+                        fun onMarkerClick(deviceId: String) {
+                            post {
+                                onMarkerClick(deviceId)
                             }
+                        }
+                    }, "AndroidInterface")
+
+                    val html = """
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+                            <style>
+                                $cssContent
+                                html, body { height: 100%; margin: 0; padding: 0; background: #080C14; }
+                                #map { position: absolute; top: 0; bottom: 0; left: 0; right: 0; background: #080C14; }
+                                .leaflet-container { background: #080C14; }
+
+                                .leaflet-div-icon {
+                                    background: transparent !important;
+                                    border: none !important;
+                                }
 
                             .fleet-marker {
                                 display: inline-flex;
@@ -247,9 +291,10 @@ fun DashboardMapView(
                         <div id="map"></div>
                         <script>
                             var map = L.map('map', { zoomControl: false }).setView([0.0, 0.0], 2);
-                            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                                maxZoom: 19,
-                                attribution: '© OpenStreetMap'
+                            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                                maxZoom: 20,
+                                subdomains: 'abcd',
+                                attribution: '© CARTO'
                             }).addTo(map);
 
                             var currentMarkers = [];
@@ -299,10 +344,10 @@ fun DashboardMapView(
                                                    '</div>';
 
                                         var icon = L.divIcon({
-                                            html: html,
-                                            className: '',
-                                            iconSize: [0, 0]
-                                        });
+                                             html: html,
+                                             className: '',
+                                             iconSize: [0, 0]
+                                         });
 
                                         var marker = L.marker([m.latitude, m.longitude], { icon: icon });
                                         marker.on('click', function() {
@@ -373,6 +418,68 @@ fun DashboardMapView(
             )
         }
     )
+
+        // Top-start HUD chip
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(14.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(0xD90F172A))
+                .padding(horizontal = 12.dp, vertical = 7.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF10B981))
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "FLEET RADAR",
+                    color = Color(0xFF00E5FF),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp,
+                    letterSpacing = 0.5.sp
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "· ${markers.size} UNITS",
+                    color = Color(0xFF94A3B8),
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 11.sp
+                )
+            }
+        }
+
+        // Bottom-end Floating Action Pill: Open in Google Maps
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(14.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(0xD90F172A))
+                .clickable { launchGoogleMapsFleet() }
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = "Open in Maps",
+                    tint = Color(0xFF00E5FF),
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Open Google Maps ↗",
+                    color = Color(0xFFF1F5F9),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
 }
 
 @Composable

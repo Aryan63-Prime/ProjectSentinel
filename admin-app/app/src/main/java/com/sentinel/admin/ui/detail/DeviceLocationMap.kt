@@ -1,15 +1,21 @@
 package com.sentinel.admin.ui.detail
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOff
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -56,59 +62,129 @@ fun DeviceLocationMap(
         return
     }
 
+    val context = LocalContext.current
+    val cleanNetwork = location.network.replace(" (Charging)", "")
+
+    fun launchGoogleMaps() {
+        val geoUri = "geo:${location.latitude},${location.longitude}?q=${location.latitude},${location.longitude}(${Uri.encode(deviceName)})"
+        val webUri = "https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}"
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(geoUri)).apply {
+            setPackage("com.google.android.apps.maps")
+        }
+        try {
+            context.startActivity(intent)
+        } catch (_: Exception) {
+            try {
+                val fallbackIntent = Intent(Intent.ACTION_VIEW, Uri.parse(geoUri))
+                context.startActivity(fallbackIntent)
+            } catch (_: Exception) {
+                try {
+                    val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(webUri))
+                    context.startActivity(webIntent)
+                } catch (ex: Exception) {
+                    android.util.Log.e("Sentinel:Map", "Failed to launch maps", ex)
+                }
+            }
+        }
+    }
+
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = Color(0xFF0F172A)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = "Location",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
-            )
+            // Header Row: Title + Accuracy Badge + Open Google Maps button
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF00E5FF).copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = Color(0xFF00E5FF),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = "LIVE SATELLITE POSITION",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF94A3B8),
+                            letterSpacing = 0.8.sp
+                        )
+                        Text(
+                            text = "Accuracy ±${location.accuracy.toInt()}m",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF38BDF8),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
 
-            val cleanNetwork = location.network.replace(" (Charging)", "")
-            val context = LocalContext.current
+                // Dedicated button to launch native Google Maps
+                androidx.compose.material3.FilledTonalButton(
+                    onClick = { launchGoogleMaps() },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
+                        containerColor = Color(0xFF0284C7).copy(alpha = 0.2f),
+                        contentColor = Color(0xFF38BDF8)
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOn,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Google Maps",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            // Interactive Leaflet Map Box with Dark Matter tiles
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(250.dp)
-                    .clip(RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp))
+                    .height(260.dp)
             ) {
                 AndroidView(
                     modifier = Modifier.fillMaxSize(),
                     factory = { ctx ->
-                        try {
-                            val assetList = ctx.assets.list("")
-                            android.util.Log.i("Sentinel:Assets", "Assets list: ${assetList?.joinToString(", ")}")
-                        } catch (e: Exception) {
-                            android.util.Log.e("Sentinel:Assets", "Failed to list assets", e)
-                        }
-
                         val cssContent = try {
-                            val text = ctx.assets.open("leaflet.css").bufferedReader().use { it.readText() }
-                            android.util.Log.i("Sentinel:Assets", "Loaded leaflet.css successfully: ${text.length} chars")
-                            text
+                            ctx.assets.open("leaflet.css").bufferedReader().use { it.readText() }
                         } catch (e: Exception) {
-                            android.util.Log.e("Sentinel:Assets", "Error loading leaflet.css", e)
                             ""
                         }
                         val jsContent = try {
-                            val text = ctx.assets.open("leaflet.js").bufferedReader().use { it.readText() }
-                            android.util.Log.i("Sentinel:Assets", "Loaded leaflet.js successfully: ${text.length} chars")
-                            text
+                            ctx.assets.open("leaflet.js").bufferedReader().use { it.readText() }
                         } catch (e: Exception) {
-                            android.util.Log.e("Sentinel:Assets", "Error loading leaflet.js", e)
                             ""
                         }
 
-                         WebView(ctx).apply {
+                        WebView(ctx).apply {
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
                             settings.allowFileAccess = true
@@ -127,14 +203,8 @@ fun DeviceLocationMap(
                                     )
                                 }
                             }
-                            webChromeClient = object : WebChromeClient() {
-                                override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
-                                    android.util.Log.d("Sentinel:WebConsole", "${consoleMessage?.message()} -- From line ${consoleMessage?.lineNumber()} of ${consoleMessage?.sourceId()}")
-                                    return true
-                                }
-                            }
                             
-                            val color = if (isOnline) "#2e7d32" else "#d32f2f"
+                            val pinColor = if (isOnline) "#10B981" else "#64748B"
                             val html = """
                                 <!DOCTYPE html>
                                 <html>
@@ -142,9 +212,30 @@ fun DeviceLocationMap(
                                     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
                                     <style>
                                         $cssContent
-                                        html, body { height: 100%; margin: 0; padding: 0; background: #121212; }
-                                        #map { position: absolute; top: 0; bottom: 0; left: 0; right: 0; background: #121212; }
-                                        .leaflet-container { background: #121212; }
+                                        html, body { height: 100%; margin: 0; padding: 0; background: #080C14; }
+                                        #map { position: absolute; top: 0; bottom: 0; left: 0; right: 0; background: #080C14; }
+                                        .leaflet-container { background: #080C14; }
+
+                                        .radar-pin {
+                                            width: 16px;
+                                            height: 16px;
+                                            border-radius: 50%;
+                                            background-color: $pinColor;
+                                            border: 2px solid #ffffff;
+                                            box-shadow: 0 0 12px $pinColor;
+                                        }
+
+                                        .leaflet-popup-content-wrapper {
+                                            background: rgba(15, 23, 42, 0.95);
+                                            color: #F8FAFC;
+                                            border: 1px solid rgba(255,255,255,0.15);
+                                            border-radius: 12px;
+                                            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+                                            backdrop-filter: blur(8px);
+                                        }
+                                        .leaflet-popup-tip {
+                                            background: rgba(15, 23, 42, 0.95);
+                                        }
                                     </style>
                                     <script>
                                         $jsContent
@@ -154,26 +245,28 @@ fun DeviceLocationMap(
                                     <div id="map"></div>
                                     <script>
                                         var map = L.map('map', { zoomControl: false }).setView([${location.latitude}, ${location.longitude}], 16);
-                                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                                            maxZoom: 19,
-                                            attribution: '© OpenStreetMap'
-                                        }).addTo(map);
                                         
-                                        // Use premium vector circleMarker instead of default image pin
+                                        // Tactical Dark Map Tiles (Carto Dark Matter with retina support)
+                                        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                                            maxZoom: 20,
+                                            subdomains: 'abcd',
+                                            attribution: '© CARTO'
+                                        }).addTo(map);
+
                                         var marker = L.circleMarker([${location.latitude}, ${location.longitude}], {
                                             radius: 8,
                                             color: '#ffffff',
                                             weight: 2,
-                                            fillColor: '$color',
+                                            fillColor: '$pinColor',
                                             fillOpacity: 1.0
                                         }).addTo(map)
-                                            .bindPopup('<b>$deviceName</b><br>${location.battery}% · $cleanNetwork')
-                                            .openPopup();
+                                            .bindPopup('<b>$deviceName</b><br>⚡ ${location.battery}% · $cleanNetwork');
 
                                         var circle = L.circle([${location.latitude}, ${location.longitude}], {
-                                            color: '$color',
-                                            fillColor: '$color',
-                                            fillOpacity: 0.15,
+                                            color: '#00E5FF',
+                                            fillColor: '#00E5FF',
+                                            fillOpacity: 0.10,
+                                            weight: 1.5,
                                             radius: ${location.accuracy}
                                         }).addTo(map);
                                         
@@ -182,12 +275,11 @@ fun DeviceLocationMap(
                                             var newPos = [lat, lng];
                                             map.setView(newPos, 16);
                                             marker.setLatLng(newPos);
-                                            marker.setPopupContent('<b>' + '$deviceName' + '</b><br>' + batt + '% · ' + net);
+                                            marker.setPopupContent('<b>' + '$deviceName' + '</b><br>⚡ ' + batt + '% · ' + net);
                                             circle.setLatLng(newPos);
                                             circle.setRadius(acc);
-                                            var newColor = online ? '#2e7d32' : '#d32f2f';
+                                            var newColor = online ? '#10B981' : '#64748B';
                                             marker.setStyle({ fillColor: newColor });
-                                            circle.setStyle({ color: newColor, fillColor: newColor });
                                         }
                                     </script>
                                 </body>
@@ -204,27 +296,55 @@ fun DeviceLocationMap(
                     }
                 )
 
-                // Clickable transparent overlay to open Google Maps with precise coordinates when tapped
+                // Floating quick button inside the map container at bottom-right for instant 1-tap navigation
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Transparent)
-                        .clickable {
-                            val uri = "geo:${location.latitude},${location.longitude}?q=${location.latitude},${location.longitude}(${Uri.encode(deviceName)})"
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uri)).apply {
-                                setPackage("com.google.android.apps.maps")
-                            }
-                            try {
-                                context.startActivity(intent)
-                            } catch (e: Exception) {
-                                try {
-                                    val fallbackIntent = Intent(Intent.ACTION_VIEW, Uri.parse(uri))
-                                    context.startActivity(fallbackIntent)
-                                } catch (ex: Exception) {
-                                    android.util.Log.e("Sentinel:Map", "Failed to start maps intent", ex)
-                                }
-                            }
-                        }
+                        .align(Alignment.BottomEnd)
+                        .padding(12.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xD90F172A))
+                        .clickable { launchGoogleMaps() }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = "Open in Maps",
+                            tint = Color(0xFF00E5FF),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Open Google Maps ↗",
+                            color = Color(0xFFF1F5F9),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            // Bottom Coordinates Bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF0B1120))
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${String.format("%.5f", location.latitude)}, ${String.format("%.5f", location.longitude)}",
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = Color(0xFF94A3B8),
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = cleanNetwork,
+                    fontSize = 11.sp,
+                    color = Color(0xFF38BDF8),
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }

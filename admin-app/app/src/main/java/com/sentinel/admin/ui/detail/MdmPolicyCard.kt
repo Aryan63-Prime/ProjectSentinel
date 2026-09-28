@@ -1,6 +1,8 @@
 package com.sentinel.admin.ui.detail
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun MdmPolicyCard(
@@ -32,10 +35,12 @@ fun MdmPolicyCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+            containerColor = Color(0xFF0F172A)
+        ),
+        border = BorderStroke(1.dp, Color(0xFF1E293B)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             // Header
@@ -45,17 +50,27 @@ fun MdmPolicyCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Security,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF00E5FF).copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = null,
+                            tint = Color(0xFF00E5FF),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Enterprise MDM & Policy",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        text = "ENTERPRISE MDM POLICY",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp,
+                        color = Color(0xFF38BDF8)
                     )
                 }
 
@@ -67,12 +82,13 @@ fun MdmPolicyCard(
                     Icon(
                         Icons.Default.Refresh,
                         contentDescription = "Refresh MDM",
+                        tint = Color(0xFF94A3B8),
                         modifier = Modifier.size(16.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Badges: Admin & Owner Status
             Row(
@@ -80,51 +96,55 @@ fun MdmPolicyCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Device Admin Badge
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = if (isDeviceAdminActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                    modifier = Modifier.weight(1f)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF080C14))
+                        .border(BorderStroke(1.dp, Color(0xFF1E293B)), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(8.dp)
+                                .size(7.dp)
                                 .clip(CircleShape)
-                                .background(if (isDeviceAdminActive) Color(0xFF4CAF50) else Color.Gray)
+                                .background(if (isDeviceAdminActive) Color(0xFF10B981) else Color(0xFF64748B))
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (isDeviceAdminActive) "Admin: Active" else "Admin: Inactive",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold
+                            text = if (isDeviceAdminActive) "ADMIN ACTIVE" else "ADMIN OFF",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isDeviceAdminActive) Color(0xFF10B981) else Color(0xFF64748B),
+                            letterSpacing = 0.5.sp
                         )
                     }
                 }
 
                 // Device Owner Badge
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = if (isDeviceOwner) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surface,
-                    modifier = Modifier.weight(1f)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF080C14))
+                        .border(BorderStroke(1.dp, Color(0xFF1E293B)), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(8.dp)
+                                .size(7.dp)
                                 .clip(CircleShape)
-                                .background(if (isDeviceOwner) Color(0xFF2196F3) else Color.Gray)
+                                .background(if (isDeviceOwner) Color(0xFF00E5FF) else Color(0xFF64748B))
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (isDeviceOwner) "Device Owner" else "Profile / User",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold
+                            text = if (isDeviceOwner) "DEVICE OWNER" else "PROFILE USER",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isDeviceOwner) Color(0xFF00E5FF) else Color(0xFF64748B),
+                            letterSpacing = 0.5.sp
                         )
                     }
                 }
@@ -141,38 +161,50 @@ fun MdmPolicyCard(
                     onClick = onLockDevice,
                     enabled = isOnline && !isLockingDevice,
                     modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
+                        containerColor = Color(0xFFF43F5E),
+                        contentColor = Color.White
                     )
                 ) {
-                    Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(15.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(if (isLockingDevice) "Locking..." else "Lock Screen")
+                    Text(
+                        if (isLockingDevice) "Locking..." else "Lock Screen",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
 
                 OutlinedButton(
                     onClick = onEnforcePermissions,
                     enabled = isOnline,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color(0xFFF1F5F9)
+                    ),
+                    border = BorderStroke(1.dp, Color(0xFF1E293B))
                 ) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color(0xFF10B981))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Auto-Grant")
+                    Text("Auto-Grant", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Action Row 2: Anti-Tamper Uninstall Protection
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.fillMaxWidth()
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF080C14))
+                    .border(BorderStroke(1.dp, Color(0xFF1E293B)), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -180,20 +212,21 @@ fun MdmPolicyCard(
                         Icon(
                             imageVector = Icons.Default.Shield,
                             contentDescription = null,
-                            tint = if (isAntiTamperEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = if (isAntiTamperEnabled) Color(0xFF00E5FF) else Color(0xFF64748B),
                             modifier = Modifier.size(18.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
                                 text = "Anti-Tamper Protection",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFFF1F5F9)
                             )
                             Text(
-                                text = "Blocks app uninstallation",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = "Blocks unauthorized package uninstallation",
+                                fontSize = 10.sp,
+                                color = Color(0xFF64748B)
                             )
                         }
                     }
@@ -201,39 +234,48 @@ fun MdmPolicyCard(
                     Switch(
                         checked = isAntiTamperEnabled,
                         onCheckedChange = { onToggleAntiTamper(it) },
-                        enabled = isOnline
+                        enabled = isOnline,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color(0xFF00E5FF),
+                            checkedTrackColor = Color(0xFF083344),
+                            uncheckedThumbColor = Color(0xFF64748B),
+                            uncheckedTrackColor = Color(0xFF1E293B)
+                        )
                     )
                 }
             }
 
             // Message Banner
             if (!actionMessage.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    modifier = Modifier.fillMaxWidth()
+                Spacer(modifier = Modifier.height(10.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF083344))
+                        .border(BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.4f)), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
                             text = actionMessage,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            fontSize = 11.sp,
+                            color = Color(0xFFE0F7FA),
+                            fontWeight = FontWeight.Medium,
                             modifier = Modifier.weight(1f)
                         )
                         IconButton(
                             onClick = onDismissMessage,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(20.dp)
                         ) {
                             Icon(
                                 Icons.Default.Close,
                                 contentDescription = "Dismiss",
+                                tint = Color(0xFF00E5FF),
                                 modifier = Modifier.size(14.dp)
                             )
                         }

@@ -45,6 +45,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.sp
 import com.sentinel.admin.domain.model.AudioStatistics
 import com.sentinel.admin.domain.model.Device
 import com.sentinel.admin.domain.model.DeviceContactBook
@@ -88,26 +92,48 @@ fun DeviceDetailScreen(
     modifier: Modifier = Modifier
 ) {
     Scaffold(
+        containerColor = Color(0xFF080C14),
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = uiState.device?.deviceName ?: "Device Details",
-                        fontWeight = FontWeight.Bold
-                    )
+                    Column {
+                        Text(
+                            text = uiState.device?.deviceName ?: "Device Details",
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFF1F5F9),
+                            fontSize = 17.sp
+                        )
+                        uiState.device?.let { dev ->
+                            Text(
+                                text = "${dev.model} · ${dev.deviceId}",
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFF38BDF8)
+                            )
+                        }
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color(0xFFF1F5F9)
+                        )
                     }
                 },
                 actions = {
                     IconButton(onClick = onRefresh) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "Refresh",
+                            tint = Color(0xFF00E5FF)
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                    containerColor = Color(0xFF080C14),
+                    titleContentColor = Color(0xFFF1F5F9)
                 )
             )
         },
@@ -377,92 +403,66 @@ private fun StatusHeader(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isOnline) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.errorContainer
-            }
-        )
+            containerColor = Color(0xFF0F172A)
+        ),
+        border = BorderStroke(1.dp, if (isOnline) Color(0x3300E5FF) else Color(0xFF1E293B)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
+                .padding(18.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Status indicator
+            // Status avatar
             Box(
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(46.dp)
                     .clip(CircleShape)
-                    .background(
-                        if (isOnline) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.error
-                        }
-                    ),
+                    .background(if (isOnline) Color(0x1F00E5FF) else Color(0xFF1E293B)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.DevicesOther,
                     contentDescription = null,
-                    tint = if (isOnline) {
-                        MaterialTheme.colorScheme.onPrimary
-                    } else {
-                        MaterialTheme.colorScheme.onError
-                    },
-                    modifier = Modifier.size(28.dp)
+                    tint = if (isOnline) Color(0xFF00E5FF) else Color(0xFF94A3B8),
+                    modifier = Modifier.size(24.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(14.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = device.deviceName,
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = if (isOnline) {
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.onErrorContainer
-                    }
+                    color = Color(0xFFF1F5F9)
                 )
+                Spacer(modifier = Modifier.height(3.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(8.dp)
+                            .size(7.dp)
                             .clip(CircleShape)
-                            .background(
-                                if (isOnline) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.error
-                                }
-                            )
+                            .background(if (isOnline) Color(0xFF10B981) else Color(0xFF64748B))
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
                     Text(
-                        text = if (isOnline) "Online" else "Offline",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (isOnline) {
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.onErrorContainer
-                        }
+                        text = if (isOnline) "ONLINE" else "OFFLINE",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isOnline) Color(0xFF10B981) else Color(0xFF64748B),
+                        letterSpacing = 0.5.sp
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         text = device.model,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (isOnline) {
-                            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                        } else {
-                            MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
-                        }
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF38BDF8)
                     )
                 }
             }
@@ -470,6 +470,11 @@ private fun StatusHeader(
             // Battery icon
             device.latestLocation?.let { loc ->
                 val isCharging = loc.network.contains("(Charging)")
+                val battColor = when {
+                    loc.battery > 50 -> Color(0xFF10B981)
+                    loc.battery > 20 -> Color(0xFFF59E0B)
+                    else -> Color(0xFFF43F5E)
+                }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
                         imageVector = if (isCharging) {
@@ -480,22 +485,14 @@ private fun StatusHeader(
                             Icons.Default.Battery4Bar
                         },
                         contentDescription = null,
-                        modifier = Modifier.size(28.dp),
-                        tint = if (isOnline) {
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.onErrorContainer
-                        }
+                        modifier = Modifier.size(26.dp),
+                        tint = battColor
                     )
                     Text(
                         text = "${loc.battery}%",
-                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isOnline) {
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.onErrorContainer
-                        }
+                        color = battColor
                     )
                 }
             }
@@ -512,10 +509,10 @@ private fun LocationCard(
     location: DeviceLocation,
     modifier: Modifier = Modifier
 ) {
-    InfoCard(title = "Location", icon = Icons.Default.LocationOn, modifier = modifier) {
-        InfoRow("Latitude", "%.6f".format(location.latitude))
-        InfoRow("Longitude", "%.6f".format(location.longitude))
-        InfoRow("Accuracy", "%.1f m".format(location.accuracy))
+    InfoCard(title = "Location Telemetry", icon = Icons.Default.LocationOn, modifier = modifier) {
+        InfoRow("Latitude", "%.6f".format(location.latitude), isMonospace = true)
+        InfoRow("Longitude", "%.6f".format(location.longitude), isMonospace = true)
+        InfoRow("Accuracy", "±%.1f m".format(location.accuracy))
         InfoRow("Recorded At", formatTimestamp(location.recordedAt))
     }
 }
@@ -533,10 +530,11 @@ private fun InfoCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = Color(0xFF0F172A)
         ),
+        border = BorderStroke(1.dp, Color(0xFF1E293B)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
@@ -549,16 +547,17 @@ private fun InfoCard(
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.primary
+                        modifier = Modifier.size(18.dp),
+                        tint = Color(0xFF00E5FF)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                 }
                 Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary
+                    text = title.uppercase(),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp,
+                    color = Color(0xFF38BDF8)
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -571,24 +570,28 @@ private fun InfoCard(
 private fun InfoRow(
     label: String,
     value: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isMonospace: Boolean = false
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            fontSize = 13.sp,
+            color = Color(0xFF94A3B8),
+            fontWeight = FontWeight.Medium
         )
         Text(
             text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurface
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = if (isMonospace) FontFamily.Monospace else FontFamily.Default,
+            color = Color(0xFFF1F5F9)
         )
     }
 }

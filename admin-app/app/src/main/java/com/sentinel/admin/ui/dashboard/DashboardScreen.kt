@@ -3,6 +3,7 @@ package com.sentinel.admin.ui.dashboard
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,8 +23,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Battery4Bar
+import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DevicesOther
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.NetworkCell
@@ -31,6 +35,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -57,9 +62,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.sentinel.admin.domain.model.Device
 
 /**
@@ -85,27 +94,50 @@ fun DashboardScreen(
     var sortMenuExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
+        containerColor = Color(0xFF080C14),
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        "Sentinel Dashboard",
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF00E5FF))
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "SENTINEL",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 1.5.sp,
+                                color = Color(0xFFF1F5F9)
+                            )
+                            Text(
+                                text = "COMMAND CENTER",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp,
+                                color = Color(0xFF00E5FF)
+                            )
+                        }
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
+                    containerColor = Color(0xFF080C14),
+                    titleContentColor = Color(0xFFF1F5F9),
+                    actionIconContentColor = Color(0xFF94A3B8)
                 ),
                 actions = {
                     // Recordings Gallery
                     IconButton(onClick = onRecordingsClick) {
-                        Icon(Icons.Default.Mic, contentDescription = "Saved Recordings")
+                        Icon(Icons.Default.Mic, contentDescription = "Saved Recordings", tint = Color(0xFF38BDF8))
                     }
                     // Sort
                     Box {
                         IconButton(onClick = { sortMenuExpanded = true }) {
-                            Icon(Icons.Default.Sort, contentDescription = "Sort")
+                            Icon(Icons.Default.Sort, contentDescription = "Sort", tint = Color(0xFF94A3B8))
                         }
                         DropdownMenu(
                             expanded = sortMenuExpanded,
@@ -138,12 +170,13 @@ fun DashboardScreen(
                     }) {
                         Icon(
                             if (uiState.viewMode == ViewMode.LIST) Icons.Default.Map else Icons.Default.ViewList,
-                            contentDescription = if (uiState.viewMode == ViewMode.LIST) "Map view" else "List view"
+                            contentDescription = if (uiState.viewMode == ViewMode.LIST) "Map view" else "List view",
+                            tint = Color(0xFF00E5FF)
                         )
                     }
                     // Refresh
                     IconButton(onClick = onRefresh) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color(0xFF94A3B8))
                     }
                 }
             )
@@ -161,14 +194,14 @@ fun DashboardScreen(
                 onQueryChanged = onSearchQueryChanged,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
             )
 
             // Fleet Filter Chips
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 FleetFilter.entries.forEach { filter ->
@@ -178,10 +211,30 @@ fun DashboardScreen(
                         FleetFilter.LOW_BATTERY -> uiState.devices.count { (it.latestLocation?.battery ?: 100) <= 20 }
                         FleetFilter.EMERGENCY -> uiState.devices.count { (it.latestLocation?.battery ?: 100) <= 15 }
                     }
+                    val isSelected = uiState.fleetFilter == filter
                     androidx.compose.material3.FilterChip(
-                        selected = uiState.fleetFilter == filter,
+                        selected = isSelected,
                         onClick = { onFleetFilterChanged(filter) },
-                        label = { Text("${filter.label} ($count)") }
+                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                            containerColor = Color(0xFF0F172A),
+                            labelColor = Color(0xFF94A3B8),
+                            selectedContainerColor = Color(0xFF083344),
+                            selectedLabelColor = Color(0xFF00E5FF)
+                        ),
+                        border = androidx.compose.material3.FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSelected,
+                            borderColor = Color(0xFF1E293B),
+                            selectedBorderColor = Color(0xFF00E5FF)
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        label = {
+                            Text(
+                                text = "${filter.label} ($count)",
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
                     )
                 }
             }
@@ -265,17 +318,25 @@ private fun SearchBar(
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChanged,
-        placeholder = { Text("Search devices…") },
-        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+        placeholder = { Text("Search units by name or ID…", color = Color(0xFF64748B), fontSize = 13.sp) },
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(18.dp)) },
         trailingIcon = {
             if (query.isNotEmpty()) {
                 IconButton(onClick = { onQueryChanged("") }) {
-                    Icon(Icons.Default.Close, contentDescription = "Clear search")
+                    Icon(Icons.Default.Close, contentDescription = "Clear search", tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
                 }
             }
         },
         singleLine = true,
-        shape = RoundedCornerShape(12.dp),
+        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = Color(0xFF0F172A),
+            unfocusedContainerColor = Color(0xFF0F172A),
+            focusedBorderColor = Color(0xFF00E5FF),
+            unfocusedBorderColor = Color(0xFF1E293B),
+            focusedTextColor = Color(0xFFF1F5F9),
+            unfocusedTextColor = Color(0xFFF1F5F9)
+        ),
+        shape = RoundedCornerShape(14.dp),
         modifier = modifier
     )
 }
@@ -291,15 +352,17 @@ private fun DeviceCard(
     modifier: Modifier = Modifier
 ) {
     val isOnline = device.heartbeatStatus == "online"
+    val loc = device.latestLocation
 
     Card(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = Color(0xFF0F172A)
         ),
+        border = BorderStroke(1.dp, if (isOnline) Color(0x3300E5FF) else Color(0xFF1E293B)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -307,25 +370,60 @@ private fun DeviceCard(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            // Header row: name + status indicator
+            // Header row: Icon + name + model + online badge
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = device.deviceName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = device.deviceId,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(if (isOnline) Color(0x1F00E5FF) else Color(0xFF1E293B)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DevicesOther,
+                            contentDescription = null,
+                            tint = if (isOnline) Color(0xFF00E5FF) else Color(0xFF94A3B8),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = device.deviceName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFF1F5F9),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = device.model,
+                                fontSize = 11.sp,
+                                color = Color(0xFF38BDF8),
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = " · ",
+                                fontSize = 11.sp,
+                                color = Color(0xFF64748B)
+                            )
+                            Text(
+                                text = device.deviceId,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFF64748B)
+                            )
+                        }
+                    }
                 }
 
                 // Status badge
@@ -333,85 +431,150 @@ private fun DeviceCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(
-                            if (isOnline) {
-                                MaterialTheme.colorScheme.primaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.errorContainer
-                            }
-                        )
+                        .background(if (isOnline) Color(0x1F10B981) else Color(0x1F64748B))
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(8.dp)
+                            .size(7.dp)
                             .clip(CircleShape)
-                            .background(
-                                if (isOnline) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.error
-                                }
-                            )
+                            .background(if (isOnline) Color(0xFF10B981) else Color(0xFF64748B))
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
                     Text(
-                        text = if (isOnline) "Online" else "Offline",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Medium,
-                        color = if (isOnline) {
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.onErrorContainer
-                        }
+                        text = if (isOnline) "ONLINE" else "OFFLINE",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isOnline) Color(0xFF10B981) else Color(0xFF94A3B8),
+                        letterSpacing = 0.5.sp
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Info row: model | battery | network
+            // Telemetry Inset Micro-Tiles
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF080C14))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Model
-                InfoChip(
-                    icon = { Icon(Icons.Default.DevicesOther, contentDescription = null, modifier = Modifier.size(14.dp)) },
-                    text = device.model
-                )
-
                 // Battery
-                device.latestLocation?.let { loc ->
-                    InfoChip(
-                        icon = { Icon(Icons.Default.Battery4Bar, contentDescription = null, modifier = Modifier.size(14.dp)) },
-                        text = "${loc.battery}%"
+                val batt = loc?.battery ?: 0
+                val battColor = when {
+                    batt > 50 -> Color(0xFF10B981)
+                    batt > 20 -> Color(0xFFF59E0B)
+                    else -> Color(0xFFF43F5E)
+                }
+                val isCharging = loc?.network?.contains("(Charging)") == true
+                Column(horizontalAlignment = Alignment.Start) {
+                    Text(
+                        text = "BATTERY",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp,
+                        color = Color(0xFF64748B)
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = if (isCharging) Icons.Default.BatteryChargingFull else if (batt > 50) Icons.Default.BatteryFull else Icons.Default.Battery4Bar,
+                            contentDescription = null,
+                            tint = battColor,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = if (loc != null) "$batt%" else "--",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = battColor
+                        )
+                    }
+                }
 
-                    // Network
-                    InfoChip(
-                        icon = { Icon(Icons.Default.NetworkCell, contentDescription = null, modifier = Modifier.size(14.dp)) },
-                        text = loc.network
+                // Uplink / Network
+                val cleanNetwork = loc?.network?.replace(" (Charging)", "") ?: "Unknown"
+                Column(horizontalAlignment = Alignment.Start) {
+                    Text(
+                        text = "UPLINK",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp,
+                        color = Color(0xFF64748B)
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = if (cleanNetwork.contains("WiFi", ignoreCase = true)) Icons.Default.Wifi else Icons.Default.NetworkCell,
+                            contentDescription = null,
+                            tint = Color(0xFF38BDF8),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = cleanNetwork,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFFF1F5F9),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                // Satellite / GPS
+                Column(horizontalAlignment = Alignment.Start) {
+                    Text(
+                        text = "SATELLITE",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp,
+                        color = Color(0xFF64748B)
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = Color(0xFF00E5FF),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = if (loc != null) "±${loc.accuracy.toInt()}m" else "No Fix",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (loc != null) Color(0xFF00E5FF) else Color(0xFF64748B)
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Footer: registration + last heartbeat
+            // Footer: registration state + last heartbeat
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = device.registrationState.replaceFirstChar { it.uppercase() },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "● ${device.registrationState.uppercase()}",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp,
+                    color = Color(0xFF64748B)
                 )
                 Text(
-                    text = "HB: ${formatTimestamp(device.lastHeartbeat)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "HEARTBEAT: ${formatTimestamp(device.lastHeartbeat)}",
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFF94A3B8)
                 )
             }
         }

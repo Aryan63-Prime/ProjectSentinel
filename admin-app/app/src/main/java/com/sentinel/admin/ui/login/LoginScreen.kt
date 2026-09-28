@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -25,16 +26,21 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -77,8 +83,8 @@ fun LoginScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        MaterialTheme.colorScheme.background,
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        Color(0xFF080C14),
+                        Color(0xFF0F172A)
                     )
                 )
             )
@@ -92,42 +98,54 @@ fun LoginScreen(
             verticalArrangement = Arrangement.Center
         ) {
             // ---- Header ----
-            Icon(
-                imageVector = Icons.Default.Lock,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
+            Box(
+                modifier = Modifier
+                    .size(68.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF00E5FF).copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = null,
+                    modifier = Modifier.size(36.dp),
+                    tint = Color(0xFF00E5FF)
+                )
+            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
             Text(
-                text = "Sentinel Admin",
+                text = "SENTINEL",
                 style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
+                fontWeight = FontWeight.Black,
+                letterSpacing = 2.sp,
+                color = Color(0xFFF1F5F9)
             )
 
             Text(
-                text = "Remote monitoring console",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = "COMMAND & SURVEILLANCE CONSOLE",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+                color = Color(0xFF38BDF8)
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
             // ---- Connection Status Banner ----
             ConnectionStatusBanner(uiState = uiState)
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // ---- Login Card ----
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                    containerColor = Color(0xFF0F172A)
                 ),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
@@ -139,12 +157,23 @@ fun LoginScreen(
                     OutlinedTextField(
                         value = uiState.serverUrl,
                         onValueChange = onServerUrlChanged,
-                        label = { Text("Server URL") },
-                        placeholder = { Text("wss://sentinel.example.com/ws") },
+                        label = { Text("Server Uplink Gateway") },
+                        placeholder = { Text("wss://sentinel.example.com/ws", color = Color(0xFF64748B)) },
                         isError = uiState.serverUrlError != null,
                         supportingText = uiState.serverUrlError?.let { { Text(it) } },
                         enabled = uiState.inputsEnabled,
                         singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = Color(0xFF080C14),
+                            unfocusedContainerColor = Color(0xFF080C14),
+                            focusedBorderColor = Color(0xFF00E5FF),
+                            unfocusedBorderColor = Color(0xFF1E293B),
+                            focusedTextColor = Color(0xFFF1F5F9),
+                            unfocusedTextColor = Color(0xFFF1F5F9),
+                            focusedLabelColor = Color(0xFF00E5FF),
+                            unfocusedLabelColor = Color(0xFF94A3B8)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Uri,
                             imeAction = ImeAction.Next
@@ -158,12 +187,23 @@ fun LoginScreen(
                     OutlinedTextField(
                         value = uiState.token,
                         onValueChange = onTokenChanged,
-                        label = { Text("JWT Token") },
-                        placeholder = { Text("eyJhbGciOiJIUzI1NiIs…") },
+                        label = { Text("Access Authorization Token") },
+                        placeholder = { Text("eyJhbGciOiJIUzI1NiIs…", color = Color(0xFF64748B)) },
                         isError = uiState.tokenError != null,
                         supportingText = uiState.tokenError?.let { { Text(it) } },
                         enabled = uiState.inputsEnabled,
                         singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = Color(0xFF080C14),
+                            unfocusedContainerColor = Color(0xFF080C14),
+                            focusedBorderColor = Color(0xFF00E5FF),
+                            unfocusedBorderColor = Color(0xFF1E293B),
+                            focusedTextColor = Color(0xFFF1F5F9),
+                            unfocusedTextColor = Color(0xFFF1F5F9),
+                            focusedLabelColor = Color(0xFF00E5FF),
+                            unfocusedLabelColor = Color(0xFF94A3B8)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
                         visualTransformation = if (tokenVisible) {
                             VisualTransformation.None
                         } else {
@@ -177,6 +217,7 @@ fun LoginScreen(
                                     } else {
                                         Icons.Default.Visibility
                                     },
+                                    tint = Color(0xFF94A3B8),
                                     contentDescription = if (tokenVisible) {
                                         "Hide token"
                                     } else {
@@ -202,12 +243,17 @@ fun LoginScreen(
                         Checkbox(
                             checked = uiState.rememberMe,
                             onCheckedChange = onRememberMeChanged,
-                            enabled = uiState.inputsEnabled
+                            enabled = uiState.inputsEnabled,
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = Color(0xFF00E5FF),
+                                checkmarkColor = Color(0xFF00363D),
+                                uncheckedColor = Color(0xFF64748B)
+                            )
                         )
                         Text(
-                            text = "Remember session",
+                            text = "Persist Secure Session",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = Color(0xFF94A3B8)
                         )
                     }
 
@@ -221,26 +267,39 @@ fun LoginScreen(
                         if (uiState.canDisconnect) {
                             OutlinedButton(
                                 onClick = onDisconnect,
+                                shape = RoundedCornerShape(12.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = Color(0xFFF1F5F9)
+                                ),
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text("Disconnect")
+                                Text("Disconnect", fontWeight = FontWeight.Bold)
                             }
                         }
 
                         Button(
                             onClick = onConnect,
                             enabled = uiState.canConnect,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF00E5FF),
+                                contentColor = Color(0xFF00363D)
+                            ),
                             modifier = Modifier.weight(1f)
                         ) {
                             if (uiState.isConnecting) {
                                 CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
+                                    modifier = Modifier.size(16.dp),
                                     strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary
+                                    color = Color(0xFF00363D)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                             }
-                            Text(if (uiState.isConnecting) "Connecting…" else "Connect")
+                            Text(
+                                if (uiState.isConnecting) "Linking…" else "Establish Link",
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
