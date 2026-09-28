@@ -164,6 +164,7 @@ class MessageSerializer(private val moshi: Moshi = Moshi.Builder().build()) {
                     path = msg?.data?.path ?: "",
                     success = msg?.data?.success ?: false,
                     size = msg?.data?.size ?: 0L,
+                    sha256 = msg?.data?.sha256,
                     error = msg?.data?.error
                 )
             }

@@ -81,6 +81,7 @@ fun AdminNavGraph() {
                 onRefresh = viewModel::refresh,
                 onSearchQueryChanged = viewModel::onSearchQueryChanged,
                 onSortOrderChanged = viewModel::onSortOrderChanged,
+                onFleetFilterChanged = viewModel::onFleetFilterChanged,
                 onViewModeChanged = viewModel::onViewModeChanged,
                 onDeviceClick = { deviceId ->
                     navController.navigate(AdminRoutes.deviceDetail(deviceId))

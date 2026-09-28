@@ -20,6 +20,8 @@ data class DashboardUiState(
     val searchQuery: String = "",
     /** Current sort order. */
     val sortOrder: SortOrder = SortOrder.STATUS_THEN_NAME,
+    /** Fleet filtering mode (All, Online, Low Battery, Alerts). */
+    val fleetFilter: FleetFilter = FleetFilter.ALL,
     /** Whether devices are loading. */
     val isLoading: Boolean = false,
     /** Whether a refresh is in progress. */
@@ -51,4 +53,14 @@ enum class SortOrder(val label: String) {
     ALPHABETICAL("A-Z"),
     BATTERY("Battery"),
     LAST_HEARTBEAT("Heartbeat")
+}
+
+/**
+ * Fleet filter tags for multi-device dashboard and map.
+ */
+enum class FleetFilter(val label: String) {
+    ALL("All"),
+    ONLINE("Online"),
+    LOW_BATTERY("Low Battery"),
+    EMERGENCY("Alerts")
 }

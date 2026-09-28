@@ -126,6 +126,11 @@ class DashboardViewModel @Inject constructor(
         applyFilterAndSort()
     }
 
+    fun onFleetFilterChanged(fleetFilter: FleetFilter) {
+        _uiState.update { it.copy(fleetFilter = fleetFilter) }
+        applyFilterAndSort()
+    }
+
     fun onViewModeChanged(viewMode: ViewMode) {
         _uiState.update { it.copy(viewMode = viewMode) }
     }
@@ -140,10 +145,20 @@ class DashboardViewModel @Inject constructor(
 
     internal fun applyFilterAndSort() {
         val state = _uiState.value
-        val filtered = filterDevices(state.devices, state.searchQuery)
-        val sorted = sortDevices(filtered, state.sortOrder)
+        val searchFiltered = filterDevices(state.devices, state.searchQuery)
+        val fleetFiltered = filterByFleet(searchFiltered, state.fleetFilter)
+        val sorted = sortDevices(fleetFiltered, state.sortOrder)
         val markers = buildMarkers(sorted)
         _uiState.update { it.copy(displayDevices = sorted, markers = markers) }
+    }
+
+    internal fun filterByFleet(devices: List<Device>, filter: FleetFilter): List<Device> {
+        return when (filter) {
+            FleetFilter.ALL -> devices
+            FleetFilter.ONLINE -> devices.filter { it.heartbeatStatus == "online" }
+            FleetFilter.LOW_BATTERY -> devices.filter { (it.latestLocation?.battery ?: 100) <= 20 }
+            FleetFilter.EMERGENCY -> devices.filter { (it.latestLocation?.battery ?: 100) <= 15 }
+        }
     }
 
     internal fun filterDevices(devices: List<Device>, query: String): List<Device> {
@@ -171,6 +186,7 @@ class DashboardViewModel @Inject constructor(
             }
         }
     }
+
     internal fun buildMarkers(devices: List<Device>): List<DeviceMarker> {
         return devices.mapNotNull { device ->
             device.latestLocation?.let { loc ->
@@ -181,7 +197,9 @@ class DashboardViewModel @Inject constructor(
                     longitude = loc.longitude,
                     isOnline = device.heartbeatStatus == "online",
                     battery = loc.battery,
-                    network = loc.network
+                    network = loc.network,
+                    isMoving = loc.accuracy in 0.1..15.0,
+                    isEmergency = loc.battery in 1..15
                 )
             }
         }

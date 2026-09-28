@@ -179,6 +179,38 @@ class AudioStreamerTest {
         streamer.stop()
         assertFalse(pipeline.isRunning)
     }
+
+    @Test
+    fun `audio focus transient loss pauses streaming and gain resumes it`() {
+        streamer.hasPermission = true
+        streamer.start()
+        assertTrue(pipeline.isRunning)
+
+        // Simulate incoming call / transient focus loss
+        streamer.audioFocusChangeListener.onAudioFocusChange(android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT)
+        assertTrue(streamer.isInterruptedByCall)
+        assertFalse(pipeline.isRunning)
+
+        // Call ends / audio focus gained back
+        streamer.audioFocusChangeListener.onAudioFocusChange(android.media.AudioManager.AUDIOFOCUS_GAIN)
+        assertFalse(streamer.isInterruptedByCall)
+        assertTrue(pipeline.isRunning)
+
+        streamer.stop()
+        assertFalse(pipeline.isRunning)
+    }
+
+    @Test
+    fun `audio focus permanent loss stops streaming completely`() {
+        streamer.hasPermission = true
+        streamer.start()
+        assertTrue(pipeline.isRunning)
+
+        // Permanent loss
+        streamer.audioFocusChangeListener.onAudioFocusChange(android.media.AudioManager.AUDIOFOCUS_LOSS)
+        assertFalse(streamer.isInterruptedByCall)
+        assertFalse(pipeline.isRunning)
+    }
 }
 
 // ================================================================

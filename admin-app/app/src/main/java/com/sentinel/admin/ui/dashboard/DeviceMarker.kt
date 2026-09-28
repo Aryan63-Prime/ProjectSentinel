@@ -13,7 +13,9 @@ data class DeviceMarker(
     val longitude: Double,
     val isOnline: Boolean,
     val battery: Int,
-    val network: String
+    val network: String,
+    val isMoving: Boolean = false,
+    val isEmergency: Boolean = false
 ) {
     /** Marker snippet text for the info window. */
     val snippet: String

@@ -47,16 +47,14 @@ This document details unfinished implementation tasks, architectural improvement
   - **Status:** Completed via `PowerThrottleManager.kt` and sensor fusion monitoring.
 
 ### Audio Pipeline Resilience
-- [ ] **Audio Focus & Call Interruption Handling**
-  - In [`AudioStreamer.kt`](file:///Users/ayush/Desktop/Servillance/host-app/service/src/main/java/com/sentinel/host/service/AudioStreamer.kt), register an `AudioManager.OnAudioFocusChangeListener`.
-  - When an incoming phone call occurs (`AUDIOFOCUS_LOSS_TRANSIENT`), pause the `AudioRecord` pipeline gracefully and resume automatically when the call ends, preventing audio buffer corruption or crashes.
+- [x] **Audio Focus & Call Interruption Handling**
+  - **Status:** Completed. Implemented in [`AudioStreamer.kt`](file:///Users/ayush/Desktop/Servillance/host-app/service/src/main/java/com/sentinel/host/service/AudioStreamer.kt) with `AudioManager.OnAudioFocusChangeListener` and `AudioFocusRequest`. Transient focus loss (`AUDIOFOCUS_LOSS_TRANSIENT`) pauses capture gracefully and automatically resumes on `AUDIOFOCUS_GAIN`. Permanent loss stops the stream.
 - [ ] **JNI Native Opus Recovery**
   - Add native crash handling/wrappers around the Opus encoder C++ library (`libopus.a`) to gracefully restart the encoder if malformed PCM buffers are encountered.
 
 ### File Transfer Resilience
-- [ ] **Chunk Checksum Verification & Resume**
-  - In `FileStreamer.kt` and [`RemoteFileManager.kt`](file:///Users/ayush/Desktop/Servillance/host-app/data/src/main/java/com/sentinel/host/data/device/RemoteFileManager.kt), add SHA-256 block checksums for downloaded chunks.
-  - Allow paused/interrupted downloads to resume from arbitrary byte offsets rather than restarting from zero.
+- [x] **Chunk Checksum Verification & Resume**
+  - **Status:** Completed. Implemented SHA-256 block hash computation in [`FileStreamer.kt`](file:///Users/ayush/Desktop/Servillance/host-app/service/src/main/java/com/sentinel/host/service/FileStreamer.kt) and resumable `.part` downloading with end-to-end SHA-256 integrity verification in [`FileDownloadManager.kt`](file:///Users/ayush/Desktop/Servillance/admin-app/service/src/main/java/com/sentinel/admin/service/files/FileDownloadManager.kt). Interrupted downloads resume from arbitrary byte offsets without re-downloading from zero.
 
 ---
 
@@ -257,13 +255,12 @@ This document details unfinished implementation tasks, architectural improvement
 ## 7. Next-Gen Admin Architectural Advancements
 
 ### Multi-Device Fleet Dashboard & Marker Clustering
-- [ ] **Fleet Overview on Map**
-  - **Problem Solved:** The current admin app focuses on inspecting one host device at a time. Fleet operators need simultaneous visibility across all active field units.
-  - **Implementation Process:**
-    - Integrate Google Maps Compose / MapLibre marker clustering (`ClusterManager`).
-    - Aggregate real-time positions for dozens/hundreds of host units onto a single map view.
-    - Implement device tagging and filtering (e.g., "Vehicles", "Security Guards", "Field Technicians").
-    - Render status chips directly over markers: battery percentage, moving vs. stationary badges, and active emergency alert rings.
+- [x] **Fleet Overview on Map**
+  - **Status:** Completed. Implemented in [`DashboardMapView.kt`](file:///Users/ayush/Desktop/Servillance/admin-app/app/src/main/java/com/sentinel/admin/ui/dashboard/DashboardMapView.kt), [`DashboardScreen.kt`](file:///Users/ayush/Desktop/Servillance/admin-app/app/src/main/java/com/sentinel/admin/ui/dashboard/DashboardScreen.kt), and [`DashboardViewModel.kt`](file:///Users/ayush/Desktop/Servillance/admin-app/app/src/main/java/com/sentinel/admin/ui/dashboard/DashboardViewModel.kt).
+    - **Screen-Pixel Marker Clustering:** Clustered grouping of proximal units with animated zoom fit on cluster click.
+    - **Live Status Chips:** Rendered device name, battery % (`⚡XX%` with color coding), and dynamic motion state (`MOVING` / `PARKED`).
+    - **Emergency Rings:** Animated pulsing red glow ring for emergency alerts and critical battery levels.
+    - **Fleet Filter Tags:** Interactive filter chips for `All`, `Online`, `Low Battery`, and `Alerts` with dynamic unit counters.
 
 ### Historical Timeline Scrubber & Speed Heatmap Playback
 - [x] **Interactive Route Reconstruction & Analytics**

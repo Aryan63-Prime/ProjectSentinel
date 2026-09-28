@@ -18,7 +18,8 @@ class FileDownloadManager(
     private val connectionRepository: ConnectionRepository,
     private val messageSerializer: MessageSerializer,
     private val scope: CoroutineScope,
-    private val downloadDir: File
+    private val downloadDir: File,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     companion object {
         private const val TAG = "Sentinel:FileDown"
@@ -41,7 +42,7 @@ class FileDownloadManager(
         scope.launch {
             mutex.withLock {
                 activeJob?.cancel()
-                activeJob = launch(Dispatchers.IO) {
+                activeJob = launch(ioDispatcher) {
                     runDownload(deviceId, path)
                 }
             }
@@ -59,17 +60,29 @@ class FileDownloadManager(
     }
 
     private suspend fun runDownload(deviceId: String, path: String) {
+        if (!downloadDir.exists()) {
+            downloadDir.mkdirs()
+        }
         val fileName = path.substringAfterLast("/")
         val localFile = File(downloadDir, fileName)
+        val partFile = File(downloadDir, "$fileName.part")
         
+        var sink: okio.BufferedSink? = null
         try {
+            // If previous download finished completely and user initiated download again, start fresh
+            if (localFile.exists() && !partFile.exists()) {
+                localFile.delete()
+            }
+
+            var offset = if (partFile.exists()) partFile.length() else 0L
+            var bytesReceived = offset
+            var totalSize = -1L
+            var expectedSha256: String? = null
+
             val sequence = System.currentTimeMillis()
-            val req = messageSerializer.serializeFileDownloadReq(deviceId, path, 0L, "", sequence)
+            val req = messageSerializer.serializeFileDownloadReq(deviceId, path, offset, "", sequence)
             connectionRepository.sendText(req)
 
-            val sink = localFile.sink().buffer()
-            var bytesReceived = 0L
-            var totalSize = -1L
             val transferId = sequence.toInt()
 
             connectionRepository.events.collect { event ->
@@ -79,6 +92,43 @@ class FileDownloadManager(
                         if (incoming is com.sentinel.admin.data.remote.protocol.IncomingMessage.FileDownloadRes) {
                             if (incoming.success) {
                                 totalSize = incoming.size
+                                expectedSha256 = incoming.sha256
+
+                                // If the remote file shrank or offset exceeds new size, reset
+                                if (offset > totalSize && totalSize >= 0) {
+                                    sink?.close()
+                                    sink = null
+                                    if (partFile.exists()) partFile.delete()
+                                    offset = 0L
+                                    bytesReceived = 0L
+                                    val retryReq = messageSerializer.serializeFileDownloadReq(deviceId, path, 0L, "", sequence)
+                                    connectionRepository.sendText(retryReq)
+                                    return@collect
+                                }
+
+                                // If file is already fully downloaded in partFile
+                                if (totalSize > 0 && offset >= totalSize) {
+                                    if (expectedSha256 != null) {
+                                        val actualSha256 = calculateSha256(partFile)
+                                        if (!actualSha256.equals(expectedSha256, ignoreCase = true)) {
+                                            partFile.delete()
+                                            _state.value = DownloadState.Error("SHA-256 mismatch")
+                                            throw CancellationException("Checksum failed")
+                                        }
+                                    }
+                                    if (localFile.exists()) localFile.delete()
+                                    partFile.renameTo(localFile)
+                                    _state.value = DownloadState.Completed(localFile)
+                                    throw CancellationException("Download complete")
+                                }
+
+                                if (totalSize > 0) {
+                                    _state.value = DownloadState.Downloading(
+                                        progress = bytesReceived.toFloat() / totalSize,
+                                        bytesReceived = bytesReceived,
+                                        totalBytes = totalSize
+                                    )
+                                }
                             } else {
                                 throw Exception(incoming.error ?: "Unknown error")
                             }
@@ -94,13 +144,17 @@ class FileDownloadManager(
                         val chunkSeq = bb.getInt()
                         
                         if (incomingId == transferId) {
+                            if (sink == null) {
+                                sink = java.io.FileOutputStream(partFile, true).sink().buffer()
+                            }
+
                             val chunkData = data.copyOfRange(9, data.size)
-                            sink.write(chunkData)
+                            sink!!.write(chunkData)
                             bytesReceived += chunkData.size
                             
                             if (totalSize > 0) {
                                 _state.value = DownloadState.Downloading(
-                                    progress = bytesReceived.toFloat() / totalSize,
+                                    progress = (bytesReceived.toFloat() / totalSize).coerceIn(0f, 1f),
                                     bytesReceived = bytesReceived,
                                     totalBytes = totalSize
                                 )
@@ -112,9 +166,25 @@ class FileDownloadManager(
                             }
                             
                             if (totalSize > 0 && bytesReceived >= totalSize) {
-                                sink.flush()
-                                sink.close()
-                                _state.value = DownloadState.Completed(localFile)
+                                sink!!.flush()
+                                sink!!.close()
+                                sink = null
+
+                                // Verify SHA-256 integrity
+                                if (expectedSha256 != null) {
+                                    val actualSha256 = calculateSha256(partFile)
+                                    if (!actualSha256.equals(expectedSha256, ignoreCase = true)) {
+                                        partFile.delete()
+                                        _state.value = DownloadState.Error("Checksum verification failed (SHA-256 mismatch)")
+                                        throw CancellationException("Checksum failed")
+                                    }
+                                    Log.i(TAG, "File SHA-256 checksum verified: $actualSha256")
+                                }
+
+                                if (localFile.exists()) localFile.delete()
+                                val renamed = partFile.renameTo(localFile)
+                                val finalFile = if (renamed) localFile else partFile
+                                _state.value = DownloadState.Completed(finalFile)
                                 throw CancellationException("Download complete")
                             }
                         }
@@ -124,14 +194,30 @@ class FileDownloadManager(
             }
 
         } catch (e: CancellationException) {
-            if (e.message != "Download complete") {
-                if (localFile.exists()) localFile.delete()
-                _state.value = DownloadState.Error("Cancelled")
+            try { sink?.close() } catch (_: Exception) {}
+            if (e.message == "Checksum failed") {
+                // State already set to Error
+            } else if (e.message != "Download complete") {
+                // Cancelled or paused: retain partFile so user can resume later
+                _state.value = DownloadState.Idle
             }
         } catch (e: Exception) {
+            try { sink?.close() } catch (_: Exception) {}
             Log.e(TAG, "Download failed: ${e.message}")
             _state.value = DownloadState.Error(e.message ?: "Unknown error")
-            if (localFile.exists()) localFile.delete()
         }
+    }
+
+    private fun calculateSha256(file: File): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { fis ->
+            val buffer = ByteArray(64 * 1024)
+            var bytesRead = fis.read(buffer)
+            while (bytesRead != -1) {
+                digest.update(buffer, 0, bytesRead)
+                bytesRead = fis.read(buffer)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 }

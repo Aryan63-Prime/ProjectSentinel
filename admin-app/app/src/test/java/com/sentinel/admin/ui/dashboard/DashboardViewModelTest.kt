@@ -520,6 +520,66 @@ class DashboardViewModelTest {
     }
 
     // ============================================================
+    // Fleet Filter
+    // ============================================================
+
+    @Test
+    fun `fleet filter ONLINE filters out offline devices`() = runTest(testDispatcher) {
+        fakeRepo.devicesResult = Result.success(TEST_DEVICES)
+        viewModel = createViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onFleetFilterChanged(FleetFilter.ONLINE)
+
+        // HOST-0001 and HOST-0003 are online, HOST-0002 is offline
+        val onlineDevices = viewModel.uiState.value.displayDevices
+        assertEquals(2, onlineDevices.size)
+        assertTrue(onlineDevices.any { it.deviceId == "HOST-0001" })
+        assertTrue(onlineDevices.any { it.deviceId == "HOST-0003" })
+        assertFalse(onlineDevices.any { it.deviceId == "HOST-0002" })
+    }
+
+    @Test
+    fun `fleet filter LOW_BATTERY filters devices with battery less than or equal to 20`() = runTest(testDispatcher) {
+        val lowBattDevice = TEST_DEVICES[0].copy(
+            deviceId = "HOST-LOW",
+            latestLocation = TEST_DEVICES[0].latestLocation?.copy(battery = 15)
+        )
+        fakeRepo.devicesResult = Result.success(listOf(TEST_DEVICES[0], lowBattDevice))
+        viewModel = createViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onFleetFilterChanged(FleetFilter.LOW_BATTERY)
+
+        val lowBattDevices = viewModel.uiState.value.displayDevices
+        assertEquals(1, lowBattDevices.size)
+        assertEquals("HOST-LOW", lowBattDevices[0].deviceId)
+    }
+
+    @Test
+    fun `buildMarkers populates isMoving and isEmergency status`() = runTest(testDispatcher) {
+        viewModel = createViewModel()
+        val movingDevice = TEST_DEVICES[0].copy(
+            latestLocation = TEST_DEVICES[0].latestLocation?.copy(accuracy = 5.0, battery = 80)
+        )
+        val emergencyDevice = TEST_DEVICES[0].copy(
+            deviceId = "HOST-EMERGENCY",
+            latestLocation = TEST_DEVICES[0].latestLocation?.copy(accuracy = 25.0, battery = 10)
+        )
+        val markers = viewModel.buildMarkers(listOf(movingDevice, emergencyDevice))
+        val movingMarker = markers.find { it.deviceId == "HOST-0001" }!!
+        val emergencyMarker = markers.find { it.deviceId == "HOST-EMERGENCY" }!!
+
+        // movingDevice has accuracy 5.0 (in 0.1..15.0), battery 80
+        assertTrue(movingMarker.isMoving)
+        assertFalse(movingMarker.isEmergency)
+
+        // emergencyDevice has accuracy 25.0 (> 15.0), battery 10 (in 1..15)
+        assertFalse(emergencyMarker.isMoving)
+        assertTrue(emergencyMarker.isEmergency)
+    }
+
+    // ============================================================
     // Test data
     // ============================================================
 

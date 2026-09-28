@@ -21,7 +21,8 @@ class FileStreamer(
     private val fileRepository: FileRepository,
     private val connectionRepository: ConnectionRepository,
     private val messageSerializer: MessageSerializer,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     companion object {
         private const val TAG = "Sentinel:FileStream"
@@ -35,7 +36,7 @@ class FileStreamer(
 
     fun handleFilesListReq(path: String, sequence: Long) {
         Log.i(TAG, "Listing files for path: $path")
-        scope.launch(Dispatchers.IO) {
+        scope.launch(ioDispatcher) {
             try {
                 val sanitizedPath = sanitizePath(path)
                 Log.d(TAG, "Sanitized path: $sanitizedPath")
@@ -55,7 +56,7 @@ class FileStreamer(
         scope.launch {
             transferMutex.withLock {
                 activeTransfers[path]?.cancel()
-                val job = launch(Dispatchers.IO) {
+                val job = launch(ioDispatcher) {
                     runTransfer(path, offset, sequence)
                 }
                 activeTransfers[path] = job
@@ -80,11 +81,18 @@ class FileStreamer(
     private suspend fun runTransfer(path: String, offset: Long, sequence: Long) {
         try {
             val sanitizedPath = sanitizePath(path)
+            val file = File(sanitizedPath)
+            if (!file.exists() || file.isDirectory) {
+                throw Exception("File not found or is a directory")
+            }
             val metadata = fileRepository.getFileMetadata(sanitizedPath)
                 ?: throw Exception("File not found")
 
-            // Send initial metadata response
-            val res = serializeDownloadRes(sanitizedPath, true, metadata.size, sequence)
+            // Compute file SHA-256 hash for end-to-end data integrity verification
+            val sha256 = calculateSha256(file)
+
+            // Send initial metadata response with file size and SHA-256 checksum
+            val res = serializeDownloadRes(sanitizedPath, true, metadata.size, sequence, sha256 = sha256)
             connectionRepository.sendText(res)
 
             // Transfer ID is the sequence of the request
@@ -101,17 +109,35 @@ class FileStreamer(
                 }
             }
             
-            Log.i(TAG, "Transfer complete for $sanitizedPath")
+            Log.i(TAG, "Transfer complete for $sanitizedPath (offset: $offset, sha256: $sha256)")
         } catch (e: Exception) {
             Log.e(TAG, "Transfer failed for $path: ${e.message}")
             if (e !is CancellationException) {
-                val errRes = serializeDownloadRes(path, false, 0, sequence, e.message)
+                val errRes = serializeDownloadRes(path, false, 0, sequence, error = e.message)
                 connectionRepository.sendText(errRes)
             }
         } finally {
             transferMutex.withLock {
                 activeTransfers.remove(path)
             }
+        }
+    }
+
+    private fun calculateSha256(file: File): String? {
+        return try {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            file.inputStream().use { fis ->
+                val buffer = ByteArray(64 * 1024)
+                var bytesRead = fis.read(buffer)
+                while (bytesRead != -1) {
+                    digest.update(buffer, 0, bytesRead)
+                    bytesRead = fis.read(buffer)
+                }
+            }
+            digest.digest().joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to calculate SHA-256 for ${file.path}: ${e.message}")
+            null
         }
     }
 
@@ -159,7 +185,14 @@ class FileStreamer(
         return buffer.readUtf8()
     }
 
-    private fun serializeDownloadRes(path: String, success: Boolean, size: Long, sequence: Long, error: String? = null): String {
+    private fun serializeDownloadRes(
+        path: String,
+        success: Boolean,
+        size: Long,
+        sequence: Long,
+        sha256: String? = null,
+        error: String? = null
+    ): String {
         val buffer = Buffer()
         val writer = com.squareup.moshi.JsonWriter.of(buffer)
         writer.beginObject()
@@ -171,6 +204,7 @@ class FileStreamer(
         writer.name("path").value(path)
         writer.name("success").value(success)
         writer.name("size").value(size)
+        if (sha256 != null) writer.name("sha256").value(sha256)
         if (error != null) writer.name("error").value(error)
         writer.endObject()
         writer.endObject()

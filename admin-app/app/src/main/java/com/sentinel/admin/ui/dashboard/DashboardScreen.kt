@@ -75,6 +75,7 @@ fun DashboardScreen(
     onRefresh: () -> Unit,
     onSearchQueryChanged: (String) -> Unit,
     onSortOrderChanged: (SortOrder) -> Unit,
+    onFleetFilterChanged: (FleetFilter) -> Unit = {},
     onViewModeChanged: (ViewMode) -> Unit,
     onDeviceClick: (String) -> Unit,
     onRecordingsClick: () -> Unit = {},
@@ -160,8 +161,30 @@ fun DashboardScreen(
                 onQueryChanged = onSearchQueryChanged,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
             )
+
+            // Fleet Filter Chips
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FleetFilter.entries.forEach { filter ->
+                    val count = when (filter) {
+                        FleetFilter.ALL -> uiState.devices.size
+                        FleetFilter.ONLINE -> uiState.devices.count { it.heartbeatStatus == "online" }
+                        FleetFilter.LOW_BATTERY -> uiState.devices.count { (it.latestLocation?.battery ?: 100) <= 20 }
+                        FleetFilter.EMERGENCY -> uiState.devices.count { (it.latestLocation?.battery ?: 100) <= 15 }
+                    }
+                    androidx.compose.material3.FilterChip(
+                        selected = uiState.fleetFilter == filter,
+                        onClick = { onFleetFilterChanged(filter) },
+                        label = { Text("${filter.label} ($count)") }
+                    )
+                }
+            }
 
             // Loading indicator
             AnimatedVisibility(visible = uiState.isLoading) {

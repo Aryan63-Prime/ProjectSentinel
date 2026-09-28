@@ -53,6 +53,7 @@ sealed interface IncomingMessage {
         val path: String,
         val success: Boolean,
         val size: Long,
+        val sha256: String? = null,
         val error: String?
     ) : IncomingMessage
 

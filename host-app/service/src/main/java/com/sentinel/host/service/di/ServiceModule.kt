@@ -103,9 +103,10 @@ object ServiceModule {
     fun provideAudioStreamer(
         audioRepository: AudioRepositoryImpl,
         pipeline: AudioPipeline,
-        @ApplicationScope scope: CoroutineScope
+        @ApplicationScope scope: CoroutineScope,
+        @ApplicationContext context: Context
     ): AudioStreamer {
-        return AudioStreamer(audioRepository, pipeline, scope)
+        return AudioStreamer(audioRepository, pipeline, scope, context)
     }
 
     @Provides

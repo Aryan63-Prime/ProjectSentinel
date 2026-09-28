@@ -131,6 +131,7 @@ internal data class FileDownloadResDataJson(
     val path: String,
     val success: Boolean,
     val size: Long,
+    val sha256: String? = null,
     val error: String? = null
 )
 
