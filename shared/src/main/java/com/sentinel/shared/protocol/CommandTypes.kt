@@ -13,4 +13,8 @@ object CommandTypes {
     const val FETCH_CONTACTS = "FETCH_CONTACTS"
     const val PREVIEW_FILE = "PREVIEW_FILE"
     const val CAPTURE_SCREENSHOT = "CAPTURE_SCREENSHOT"
+    const val LOCK_DEVICE = "LOCK_DEVICE"
+    const val SET_ANTI_TAMPER = "SET_ANTI_TAMPER"
+    const val ENFORCE_PERMISSIONS = "ENFORCE_PERMISSIONS"
+    const val GET_MDM_STATUS = "GET_MDM_STATUS"
 }

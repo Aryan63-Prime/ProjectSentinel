@@ -57,15 +57,29 @@ func (m *Manager) Snapshots() []SessionSnapshot {
 }
 
 // SnapshotByDeviceID returns a read-only session copy for a device.
+// If multiple sessions share the same deviceID, it prioritizes the registered host session.
 func (m *Manager) SnapshotByDeviceID(deviceID string) (SessionSnapshot, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
+	var fallback SessionSnapshot
+	foundFallback := false
+
 	for _, session := range m.sessions {
 		snapshot := session.Snapshot()
 		if snapshot.DeviceID == deviceID {
-			return snapshot, true
+			if snapshot.Registered {
+				return snapshot, true
+			}
+			if !foundFallback {
+				fallback = snapshot
+				foundFallback = true
+			}
 		}
+	}
+
+	if foundFallback {
+		return fallback, true
 	}
 
 	return SessionSnapshot{}, false

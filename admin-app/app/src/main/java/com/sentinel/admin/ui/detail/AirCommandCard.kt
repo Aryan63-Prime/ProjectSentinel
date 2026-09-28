@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.ListAlt
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Terminal
@@ -40,6 +41,7 @@ fun AirCommandCard(
     onFetchNotifLogsClick: () -> Unit,
     onExecuteShellClick: () -> Unit,
     onCaptureScreenshotClick: () -> Unit = {},
+    onLockDeviceClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -145,7 +147,7 @@ fun AirCommandCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Row 4: Zero-Disk Screenshot Capture
+            // Row 4: Zero-Disk Screenshot Capture & Remote MDM Lock
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -153,11 +155,24 @@ fun AirCommandCard(
                 OutlinedButton(
                     onClick = onCaptureScreenshotClick,
                     enabled = isOnline,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.weight(1f)
                 ) {
                     Icon(Icons.Default.PhoneAndroid, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Capture Screen")
+                    Text("Screen")
+                }
+
+                OutlinedButton(
+                    onClick = onLockDeviceClick,
+                    enabled = isOnline,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Lock Phone")
                 }
             }
         }

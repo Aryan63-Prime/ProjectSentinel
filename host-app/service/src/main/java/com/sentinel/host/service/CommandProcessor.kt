@@ -34,7 +34,8 @@ class CommandProcessor @Inject constructor(
     private val filePreviewManager: FilePreviewManager,
     private val screenshotCapturer: ScreenshotCapturer,
     private val pttAudioPlayer: com.sentinel.host.data.audio.PttAudioPlayer,
-    private val hostGeofenceManager: com.sentinel.host.data.location.HostGeofenceManager
+    private val hostGeofenceManager: com.sentinel.host.data.location.HostGeofenceManager,
+    private val mdmManager: com.sentinel.host.data.device.MdmManager
 ) {
     companion object {
         private const val TAG = "Sentinel:CmdProc"
@@ -123,7 +124,8 @@ class CommandProcessor @Inject constructor(
 
                 when (command) {
                     CommandTypes.GET_SYSTEM_INFO -> {
-                        val info = systemInfoProvider.getSystemInfo()
+                        val info = systemInfoProvider.getSystemInfo().toMutableMap()
+                        info.putAll(mdmManager.getMdmStatus())
                         resultPayload.putAll(info)
                     }
 
@@ -263,6 +265,45 @@ class CommandProcessor @Inject constructor(
                             pttAudioPlayer.playPcmChunk(pcmBytes)
                         }
                         resultPayload["played"] = true
+                    }
+
+                    CommandTypes.LOCK_DEVICE -> {
+                        val (locked, method) = mdmManager.lockDeviceNow()
+                        resultPayload["locked"] = locked
+                        resultPayload["method"] = method
+                        if (!locked) {
+                            isSuccess = false
+                            errorMessage = method
+                        }
+                    }
+
+                    CommandTypes.SET_ANTI_TAMPER -> {
+                        val enabled = params.optBoolean("enabled", true)
+                        val success = mdmManager.setUninstallProtection(enabled)
+                        resultPayload["antiTamperEnabled"] = enabled
+                        resultPayload["success"] = success
+                        if (!success) {
+                            if (!mdmManager.isDeviceOwner) {
+                                isSuccess = false
+                                errorMessage = "Device Owner mode required for Anti-Tamper uninstall protection"
+                            } else {
+                                isSuccess = false
+                                errorMessage = "Failed to update uninstall protection"
+                            }
+                        }
+                    }
+
+                    CommandTypes.ENFORCE_PERMISSIONS -> {
+                        val success = mdmManager.autoGrantAllPermissions()
+                        resultPayload["permissionsEnforced"] = success
+                        if (!success && !mdmManager.isDeviceOwner && !mdmManager.isProfileOwner) {
+                            isSuccess = false
+                            errorMessage = "Device Owner or Profile Owner mode required to auto-grant permissions"
+                        }
+                    }
+
+                    CommandTypes.GET_MDM_STATUS -> {
+                        resultPayload.putAll(mdmManager.getMdmStatus())
                     }
 
                     else -> {

@@ -48,6 +48,11 @@ data class DeviceDetailUiState(
     val screenshotPayload: Map<String, Any?> = emptyMap(),
     val showPreviewDialog: Boolean = false,
     val previewPayload: Map<String, Any?> = emptyMap(),
+    val isDeviceAdminActive: Boolean = false,
+    val isDeviceOwner: Boolean = false,
+    val isAntiTamperEnabled: Boolean = false,
+    val isLockingDevice: Boolean = false,
+    val mdmActionMessage: String? = null,
     val commandStatusMessage: String? = null
 ) {
     /** True if device loaded successfully. */

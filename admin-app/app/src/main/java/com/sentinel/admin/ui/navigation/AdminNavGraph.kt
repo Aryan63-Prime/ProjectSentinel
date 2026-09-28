@@ -120,6 +120,11 @@ fun AdminNavGraph() {
                 onPttStop = viewModel::stopPtt,
                 onSyncContactClick = viewModel::sendSyncContactsCommand,
                 onOpenAddressBookClick = viewModel::openAddressBookDialog,
+                onLockDeviceClick = viewModel::lockDevice,
+                onToggleAntiTamper = viewModel::setAntiTamper,
+                onEnforcePermissions = viewModel::enforcePermissions,
+                onRefreshMdmStatus = viewModel::fetchMdmStatus,
+                onDismissMdmMessage = viewModel::dismissMdmMessage,
                 onDismissDialogs = viewModel::dismissDialogs
             )
         }

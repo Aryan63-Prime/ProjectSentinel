@@ -79,6 +79,11 @@ fun DeviceDetailScreen(
     onPttStop: () -> Unit = {},
     onSyncContactClick: () -> Unit = {},
     onOpenAddressBookClick: () -> Unit = {},
+    onLockDeviceClick: () -> Unit = {},
+    onToggleAntiTamper: (Boolean) -> Unit = {},
+    onEnforcePermissions: () -> Unit = {},
+    onRefreshMdmStatus: () -> Unit = {},
+    onDismissMdmMessage: () -> Unit = {},
     onDismissDialogs: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -159,6 +164,16 @@ fun DeviceDetailScreen(
                             onCaptureScreenshotClick = onCaptureScreenshotClick,
                             onPttStart = onPttStart,
                             onPttStop = onPttStop,
+                            isDeviceAdminActive = uiState.isDeviceAdminActive,
+                            isDeviceOwner = uiState.isDeviceOwner,
+                            isAntiTamperEnabled = uiState.isAntiTamperEnabled,
+                            isLockingDevice = uiState.isLockingDevice,
+                            mdmActionMessage = uiState.mdmActionMessage,
+                            onLockDeviceClick = onLockDeviceClick,
+                            onToggleAntiTamper = onToggleAntiTamper,
+                            onEnforcePermissions = onEnforcePermissions,
+                            onRefreshMdmStatus = onRefreshMdmStatus,
+                            onDismissMdmMessage = onDismissMdmMessage,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -229,6 +244,16 @@ private fun DeviceContent(
     onCaptureScreenshotClick: () -> Unit = {},
     onPttStart: () -> Unit = {},
     onPttStop: () -> Unit = {},
+    isDeviceAdminActive: Boolean = false,
+    isDeviceOwner: Boolean = false,
+    isAntiTamperEnabled: Boolean = false,
+    isLockingDevice: Boolean = false,
+    mdmActionMessage: String? = null,
+    onLockDeviceClick: () -> Unit = {},
+    onToggleAntiTamper: (Boolean) -> Unit = {},
+    onEnforcePermissions: () -> Unit = {},
+    onRefreshMdmStatus: () -> Unit = {},
+    onDismissMdmMessage: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -279,7 +304,23 @@ private fun DeviceContent(
             onFetchLogsClick = onFetchLogsClick,
             onFetchNotifLogsClick = onFetchNotifLogsClick,
             onExecuteShellClick = onExecuteShellClick,
-            onCaptureScreenshotClick = onCaptureScreenshotClick
+            onCaptureScreenshotClick = onCaptureScreenshotClick,
+            onLockDeviceClick = onLockDeviceClick
+        )
+
+        // Enterprise MDM & Policy Card
+        MdmPolicyCard(
+            isOnline = isOnline,
+            isDeviceAdminActive = isDeviceAdminActive,
+            isDeviceOwner = isDeviceOwner,
+            isAntiTamperEnabled = isAntiTamperEnabled,
+            isLockingDevice = isLockingDevice,
+            actionMessage = mdmActionMessage,
+            onLockDevice = onLockDeviceClick,
+            onToggleAntiTamper = onToggleAntiTamper,
+            onEnforcePermissions = onEnforcePermissions,
+            onRefreshStatus = onRefreshMdmStatus,
+            onDismissMessage = onDismissMdmMessage
         )
 
         // Audio monitoring controls
