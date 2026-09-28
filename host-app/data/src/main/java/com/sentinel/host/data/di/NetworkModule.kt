@@ -165,9 +165,10 @@ object NetworkModule {
     fun provideLocationRepository(
         connectionRepository: ConnectionRepository,
         messageSerializer: MessageSerializer,
-        sequenceGenerator: SequenceGenerator
+        sequenceGenerator: SequenceGenerator,
+        offlineBuffer: com.sentinel.host.data.location.OfflineTelemetryBuffer
     ): LocationRepository {
-        return LocationRepositoryImpl(connectionRepository, messageSerializer, sequenceGenerator)
+        return LocationRepositoryImpl(connectionRepository, messageSerializer, sequenceGenerator, offlineBuffer)
     }
 
     @Provides

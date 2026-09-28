@@ -9,11 +9,22 @@ class SentinelAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "Sentinel:AccessService"
+
+        @Volatile
+        var instance: SentinelAccessibilityService? = null
+            private set
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        instance = this
         Log.i(TAG, "SentinelAccessibilityService connected successfully")
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (instance == this) instance = null
+        Log.i(TAG, "SentinelAccessibilityService destroyed")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {

@@ -31,6 +31,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import androidx.lifecycle.SavedStateHandle
+import com.sentinel.admin.data.remote.websocket.WebSocketDataSource
+import com.sentinel.admin.domain.model.DeviceContact
+import com.sentinel.admin.domain.model.DeviceContactBook
+import com.sentinel.admin.domain.repository.ContactRepository
+import kotlinx.coroutines.flow.Flow
+import okhttp3.OkHttpClient
 
 /**
  * Unit tests for [DeviceDetailViewModel].
@@ -95,6 +101,34 @@ class DeviceDetailViewModelTest {
         override fun release() {}
     }
 
+    private class FakeContactRepository : ContactRepository {
+        val contactsMap = mutableMapOf<String, MutableStateFlow<DeviceContactBook?>>()
+
+        override fun getContactBook(deviceId: String): Flow<DeviceContactBook?> {
+            val flow = contactsMap.computeIfAbsent(deviceId) {
+                MutableStateFlow(
+                    DeviceContactBook(
+                        deviceId = deviceId,
+                        total = 2,
+                        contacts = listOf(
+                            DeviceContact(name = "Alice Smith", phone = "+1 (555) 234-8901", type = "Mobile"),
+                            DeviceContact(name = "Bob ICE", phone = "+1 (555) 911-3042", type = "Mobile", isEmergency = true)
+                        ),
+                        emergencyContact = DeviceContact(name = "Bob ICE", phone = "+1 (555) 911-3042", type = "Mobile", isEmergency = true),
+                        lastSynced = "Sep 28, 2026 10:00"
+                    )
+                )
+            }
+            return flow
+        }
+
+        override suspend fun saveContactBook(deviceId: String, contactBook: DeviceContactBook): Result<Unit> {
+            val flow = contactsMap.computeIfAbsent(deviceId) { MutableStateFlow(contactBook) }
+            flow.value = contactBook
+            return Result.success(Unit)
+        }
+    }
+
     // ============================================================
     // Setup
     // ============================================================
@@ -102,13 +136,17 @@ class DeviceDetailViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var fakeRepo: FakeDeviceRepository
     private lateinit var fakeAudioRepo: FakeAudioRepository
+    private lateinit var fakeContactRepo: FakeContactRepository
     private lateinit var audioMonitor: AudioMonitor
+    private lateinit var webSocketDataSource: WebSocketDataSource
 
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         fakeRepo = FakeDeviceRepository()
         fakeAudioRepo = FakeAudioRepository()
+        fakeContactRepo = FakeContactRepository()
+        webSocketDataSource = WebSocketDataSource(OkHttpClient())
         audioMonitor = AudioMonitor(
             decoder = NativeOpusDecoder(),
             audioOutput = FakeAudioOutput(),
@@ -123,7 +161,14 @@ class DeviceDetailViewModelTest {
 
     private fun createViewModel(deviceId: String = "HOST-0001"): DeviceDetailViewModel {
         val savedStateHandle = SavedStateHandle(mapOf("deviceId" to deviceId))
-        return DeviceDetailViewModel(savedStateHandle, fakeRepo, fakeAudioRepo, audioMonitor)
+        return DeviceDetailViewModel(
+            savedStateHandle = savedStateHandle,
+            deviceRepository = fakeRepo,
+            audioRepository = fakeAudioRepo,
+            contactRepository = fakeContactRepo,
+            audioMonitor = audioMonitor,
+            webSocketDataSource = webSocketDataSource
+        )
     }
 
     // ============================================================
@@ -370,6 +415,65 @@ class DeviceDetailViewModelTest {
         viewModel.onStopClick()
         assertEquals(1, fakeAudioRepo.stopCalls.size)
         assertEquals("HOST-0001", fakeAudioRepo.stopCalls[0])
+    }
+
+    // ============================================================
+    // Contact details
+    // ============================================================
+
+    @Test
+    fun `observes contact book on load`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNotNull(viewModel.uiState.value.contactBook)
+        assertEquals(2, viewModel.uiState.value.contactBook?.total)
+        assertEquals("Alice Smith", viewModel.uiState.value.contactBook?.contacts?.first()?.name)
+        assertEquals("Bob ICE", viewModel.uiState.value.contactBook?.emergencyContact?.name)
+    }
+
+    @Test
+    fun `sendSyncContactsCommand sets syncing flag`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.sendSyncContactsCommand()
+        assertTrue(viewModel.uiState.value.isSyncingContacts)
+        assertEquals("Syncing contacts from host device...", viewModel.uiState.value.commandStatusMessage)
+    }
+
+    @Test
+    fun `openAddressBookDialog sets flag to true`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.showAddressBookDialog)
+        viewModel.openAddressBookDialog()
+        assertTrue(viewModel.uiState.value.showAddressBookDialog)
+    }
+
+    @Test
+    fun `dismissAddressBookDialog sets flag to false`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openAddressBookDialog()
+        assertTrue(viewModel.uiState.value.showAddressBookDialog)
+
+        viewModel.dismissAddressBookDialog()
+        assertFalse(viewModel.uiState.value.showAddressBookDialog)
+    }
+
+    @Test
+    fun `dismissDialogs resets all dialog flags including address book`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.openAddressBookDialog()
+        assertTrue(viewModel.uiState.value.showAddressBookDialog)
+
+        viewModel.dismissDialogs()
+        assertFalse(viewModel.uiState.value.showAddressBookDialog)
     }
 
     // ============================================================

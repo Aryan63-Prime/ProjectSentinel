@@ -39,6 +39,9 @@
     <!-- Notifications (API 33+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Contacts -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
     <application
         android:name=".SentinelApp"
         android:allowBackup="false"
@@ -72,6 +75,26 @@
                 <action android:name="vivo.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
         </receiver>
+
+        <!-- Device Admin Receiver for MDM -->
+        <receiver
+            android:name=".receiver.SentinelDeviceAdminReceiver"
+            android:label="Sentinel Device Manager"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:exported="true">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin_policy" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+                <action android:name="android.app.action.PROFILE_PROVISIONING_COMPLETE" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Geofence Broadcast Receiver -->
+        <receiver
+            android:name="com.sentinel.host.data.receiver.GeofenceBroadcastReceiver"
+            android:exported="false" />
 
         <service
             android:name=".service.SentinelForegroundService"

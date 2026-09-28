@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.sentinel.admin.domain.model.FileItem
 import com.sentinel.admin.service.files.FileDownloadManager
+import com.sentinel.admin.ui.detail.FilePreviewDialog
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -30,6 +31,8 @@ fun FileBrowserScreen(
     val files by viewModel.files.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val downloadState by viewModel.downloadState.collectAsState()
+    val previewPayload by viewModel.previewPayload.collectAsState()
+    val isPreviewLoading by viewModel.isPreviewLoading.collectAsState()
 
     LaunchedEffect(deviceId) {
         viewModel.loadDirectory(deviceId, "/storage/emulated/0")
@@ -70,6 +73,9 @@ fun FileBrowserScreen(
                                 } else {
                                     viewModel.downloadFile(deviceId, item)
                                 }
+                            },
+                            onPreview = {
+                                viewModel.requestPreview(deviceId, item)
                             }
                         )
                     }
@@ -148,12 +154,32 @@ fun FileBrowserScreen(
                 }
                 else -> {}
             }
+
+            // Remote File Preview Dialog
+            previewPayload?.let { payload ->
+                FilePreviewDialog(
+                    payload = payload,
+                    onDismiss = viewModel::dismissPreview,
+                    onDownloadFullFile = { path ->
+                        val fileName = path.substringAfterLast("/")
+                        val item = files.firstOrNull { it.name == fileName }
+                        if (item != null) {
+                            viewModel.downloadFile(deviceId, item)
+                        }
+                        viewModel.dismissPreview()
+                    }
+                )
+            }
         }
     }
 }
 
 @Composable
-fun FileListItem(item: FileItem, onClick: () -> Unit) {
+fun FileListItem(
+    item: FileItem,
+    onClick: () -> Unit,
+    onPreview: () -> Unit = {}
+) {
     ListItem(
         headlineContent = { Text(item.name) },
         supportingContent = { 
@@ -166,6 +192,13 @@ fun FileListItem(item: FileItem, onClick: () -> Unit) {
                 contentDescription = null,
                 tint = if (item.isDir) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
             )
+        },
+        trailingContent = {
+            if (!item.isDir) {
+                IconButton(onClick = onPreview) {
+                    Icon(Icons.Default.Visibility, contentDescription = "Preview", tint = MaterialTheme.colorScheme.primary)
+                }
+            }
         },
         modifier = Modifier.clickable(onClick = onClick)
     )

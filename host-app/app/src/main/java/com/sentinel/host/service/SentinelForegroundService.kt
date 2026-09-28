@@ -75,6 +75,7 @@ class SentinelForegroundService : Service() {
     @Inject lateinit var audioStreamer: AudioStreamer
     @Inject lateinit var commandProcessor: CommandProcessor
     @Inject lateinit var webSocketDataSource: com.sentinel.host.data.remote.websocket.WebSocketDataSource
+    @Inject lateinit var fallDetector: com.sentinel.host.data.device.FallDetector
 
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
         Log.e(TAG, "Unhandled exception in Sentinel service scope: ${throwable.message}", throwable)
@@ -96,6 +97,36 @@ class SentinelForegroundService : Service() {
         createNotificationChannel()
         registerReceiver(locationReceiver, IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION))
         SentinelWatchdogWorker.schedule(this)
+
+        // Start automated fall detection & SOS trigger
+        fallDetector.start()
+        fallDetector.onEmergencyTriggered = { peakG ->
+            Log.e(TAG, "EMERGENCY: Fall detected with peak $peakG g!")
+            val lastLoc = locationStreamer.lastLocation
+            val sosJson = org.json.JSONObject().apply {
+                put("type", com.sentinel.shared.protocol.MessageType.EMERGENCY_SOS)
+                put("version", 1)
+                put("timestamp", System.currentTimeMillis() / 1000)
+                val data = org.json.JSONObject().apply {
+                    put("triggerReason", "FALL_DETECTED")
+                    put("impactGForce", peakG.toDouble())
+                    put("latitude", lastLoc?.latitude ?: 0.0)
+                    put("longitude", lastLoc?.longitude ?: 0.0)
+                    put("accuracy", lastLoc?.accuracy?.toDouble() ?: 0.0)
+                    put("battery", lastLoc?.battery ?: 0)
+                    put("timestamp", System.currentTimeMillis() / 1000)
+                }
+                put("data", data)
+            }
+            serviceScope.launch {
+                try {
+                    webSocketDataSource.sendText(sosJson.toString())
+                    Log.i(TAG, "Emergency SOS broadcasted successfully")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to broadcast emergency SOS: ${e.message}")
+                }
+            }
+        }
 
         serviceScope.launch {
             webSocketDataSource.textMessages.collect { rawText ->
@@ -276,6 +307,7 @@ class SentinelForegroundService : Service() {
         } catch (e: Exception) {
             // Ignore
         }
+        fallDetector.stop()
         connectionSupervisor.stop()
         serviceScope.cancel()
         super.onDestroy()

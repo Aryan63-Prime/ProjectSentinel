@@ -18,7 +18,8 @@ import javax.inject.Inject
 class FileViewModel @Inject constructor(
     private val connectionRepository: ConnectionRepository,
     private val messageSerializer: MessageSerializer,
-    private val downloadManager: FileDownloadManager
+    private val downloadManager: FileDownloadManager,
+    private val webSocketDataSource: com.sentinel.admin.data.remote.websocket.WebSocketDataSource
 ) : ViewModel() {
 
     private val TAG = "Sentinel:FileVM"
@@ -31,6 +32,12 @@ class FileViewModel @Inject constructor(
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
+
+    private val _previewPayload = MutableStateFlow<Map<String, Any?>?>(null)
+    val previewPayload = _previewPayload.asStateFlow()
+
+    private val _isPreviewLoading = MutableStateFlow(false)
+    val isPreviewLoading = _isPreviewLoading.asStateFlow()
 
     private var pendingLoadDeviceId: String? = null
 
@@ -75,6 +82,59 @@ class FileViewModel @Inject constructor(
                 }
             }
             .launchIn(viewModelScope)
+
+        // Observe WebSocket COMMAND_RESULT for PREVIEW_FILE
+        viewModelScope.launch {
+            webSocketDataSource.textMessages.collect { rawText ->
+                try {
+                    val json = org.json.JSONObject(rawText)
+                    if (json.optString("type") == "COMMAND_RESULT") {
+                        val data = json.optJSONObject("data") ?: return@collect
+                        if (data.optString("command") == "PREVIEW_FILE") {
+                            _isPreviewLoading.value = false
+                            if (data.optBoolean("success", false)) {
+                                val payload = data.optJSONObject("payload")
+                                if (payload != null) {
+                                    val map = mutableMapOf<String, Any?>()
+                                    val it = payload.keys()
+                                    while (it.hasNext()) {
+                                        val key = it.next()
+                                        map[key] = payload.get(key)
+                                    }
+                                    _previewPayload.value = map
+                                }
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    fun requestPreview(deviceId: String, item: FileItem) {
+        val path = if (_currentPath.value.endsWith("/")) "${_currentPath.value}${item.name}" else "${_currentPath.value}/${item.name}"
+        _isPreviewLoading.value = true
+        val cmd = org.json.JSONObject().apply {
+            put("type", "COMMAND")
+            put("version", 1)
+            put("timestamp", System.currentTimeMillis() / 1000)
+            put("sequence", System.currentTimeMillis())
+            val data = org.json.JSONObject().apply {
+                put("targetDeviceId", deviceId)
+                put("command", "PREVIEW_FILE")
+                put("params", org.json.JSONObject().apply {
+                    put("path", path)
+                    put("maxDim", 720)
+                    put("textLines", 250)
+                })
+            }
+            put("data", data)
+        }
+        connectionRepository.sendText(cmd.toString())
+    }
+
+    fun dismissPreview() {
+        _previewPayload.value = null
     }
 
     fun loadDirectory(deviceId: String, path: String) {

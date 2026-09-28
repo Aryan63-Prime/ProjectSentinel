@@ -29,4 +29,15 @@ object MessageType {
     // Air Commands
     const val COMMAND = "COMMAND"
     const val COMMAND_RESULT = "COMMAND_RESULT"
+
+    // Batch & Telemetry
+    const val LOCATION_BATCH = "LOCATION_BATCH"
+    const val CRASH_REPORT = "CRASH_REPORT"
+    const val EMERGENCY_SOS = "EMERGENCY_SOS"
+    const val GEOFENCE_TRANSITION = "GEOFENCE_TRANSITION"
+
+    // PTT Intercom
+    const val PTT_START = "PTT_START"
+    const val PTT_STOP = "PTT_STOP"
+    const val PTT_AUDIO = "PTT_AUDIO"
 }

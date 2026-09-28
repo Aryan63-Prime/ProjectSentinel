@@ -47,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.sentinel.admin.domain.model.AudioStatistics
 import com.sentinel.admin.domain.model.Device
+import com.sentinel.admin.domain.model.DeviceContactBook
 import com.sentinel.admin.domain.model.DeviceLocation
 import com.sentinel.admin.domain.model.PlaybackState
 
@@ -73,6 +74,11 @@ fun DeviceDetailScreen(
     onFetchLogsClick: () -> Unit = {},
     onFetchNotifLogsClick: () -> Unit = {},
     onExecuteShellClick: (String) -> Unit = {},
+    onCaptureScreenshotClick: () -> Unit = {},
+    onPttStart: () -> Unit = {},
+    onPttStop: () -> Unit = {},
+    onSyncContactClick: () -> Unit = {},
+    onOpenAddressBookClick: () -> Unit = {},
     onDismissDialogs: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -135,6 +141,10 @@ fun DeviceDetailScreen(
                             audioStats = uiState.audioStats,
                             isRecording = uiState.isRecording,
                             recordingDurationMs = uiState.recordingDurationMs,
+                            contactBook = uiState.contactBook,
+                            isSyncingContacts = uiState.isSyncingContacts,
+                            onSyncContactClick = onSyncContactClick,
+                            onOpenAddressBookClick = onOpenAddressBookClick,
                             onListenClick = onListenClick,
                             onStopClick = onStopClick,
                             onRecordToggle = onRecordToggle,
@@ -146,6 +156,9 @@ fun DeviceDetailScreen(
                             onFetchLogsClick = onFetchLogsClick,
                             onFetchNotifLogsClick = onFetchNotifLogsClick,
                             onExecuteShellClick = { onExecuteShellClick("uptime") },
+                            onCaptureScreenshotClick = onCaptureScreenshotClick,
+                            onPttStart = onPttStart,
+                            onPttStop = onPttStop,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -173,6 +186,15 @@ fun DeviceDetailScreen(
             if (uiState.showNotifLogsDialog) {
                 NotificationLogDialog(logsJsonRaw = uiState.notifLogsJsonRaw, onDismiss = onDismissDialogs)
             }
+            if (uiState.showAddressBookDialog && uiState.contactBook != null) {
+                AddressBookDialog(contactBook = uiState.contactBook, onDismiss = onDismissDialogs)
+            }
+            if (uiState.showScreenshotDialog) {
+                ScreenshotViewerDialog(payload = uiState.screenshotPayload, onDismiss = onDismissDialogs)
+            }
+            if (uiState.showPreviewDialog) {
+                FilePreviewDialog(payload = uiState.previewPayload, onDismiss = onDismissDialogs)
+            }
         }
     }
 }
@@ -189,6 +211,10 @@ private fun DeviceContent(
     audioStats: AudioStatistics,
     isRecording: Boolean,
     recordingDurationMs: Long,
+    contactBook: DeviceContactBook? = null,
+    isSyncingContacts: Boolean = false,
+    onSyncContactClick: () -> Unit = {},
+    onOpenAddressBookClick: () -> Unit = {},
     onListenClick: () -> Unit,
     onStopClick: () -> Unit,
     onRecordToggle: () -> Unit,
@@ -200,6 +226,9 @@ private fun DeviceContent(
     onFetchLogsClick: () -> Unit = {},
     onFetchNotifLogsClick: () -> Unit = {},
     onExecuteShellClick: () -> Unit = {},
+    onCaptureScreenshotClick: () -> Unit = {},
+    onPttStart: () -> Unit = {},
+    onPttStop: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -249,7 +278,8 @@ private fun DeviceContent(
             onCapturePhotoClick = onCapturePhotoClick,
             onFetchLogsClick = onFetchLogsClick,
             onFetchNotifLogsClick = onFetchNotifLogsClick,
-            onExecuteShellClick = onExecuteShellClick
+            onExecuteShellClick = onExecuteShellClick,
+            onCaptureScreenshotClick = onCaptureScreenshotClick
         )
 
         // Audio monitoring controls
@@ -258,15 +288,26 @@ private fun DeviceContent(
             audioStats = audioStats,
             isRecording = isRecording,
             recordingDurationMs = recordingDurationMs,
+            isOnline = isOnline,
             onListenClick = onListenClick,
             onStopClick = onStopClick,
             onRecordToggle = onRecordToggle,
-            onRecordingsClick = onRecordingsClick
+            onRecordingsClick = onRecordingsClick,
+            onPttStart = onPttStart,
+            onPttStop = onPttStop
         )
 
         // File system controls
         FileControlCard(
             onFilesClick = onFilesClick
+        )
+
+        // Contact & Address Book Card (Real Host Contacts)
+        ContactDetailsCard(
+            contactBook = contactBook,
+            isSyncing = isSyncingContacts,
+            onSyncClick = onSyncContactClick,
+            onOpenAddressBookClick = onOpenAddressBookClick
         )
 
         // Network card (from location data)

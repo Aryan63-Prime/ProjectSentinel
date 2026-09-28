@@ -41,6 +41,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -181,7 +182,10 @@ fun DashboardScreen(
                     )
                 }
                 uiState.isEmpty -> {
-                    EmptyState(onRefresh = onRefresh)
+                    EmptyState(
+                        onRefresh = onRefresh,
+                        onDemoDeviceClick = { onDeviceClick("HOST-0001") }
+                    )
                 }
                 uiState.isSearchEmpty -> {
                     SearchEmptyState(query = uiState.searchQuery)
@@ -438,6 +442,7 @@ private fun LoadingState(modifier: Modifier = Modifier) {
 @Composable
 private fun EmptyState(
     onRefresh: () -> Unit,
+    onDemoDeviceClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -463,11 +468,18 @@ private fun EmptyState(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
-            Spacer(modifier = Modifier.height(24.dp))
-            TextButton(onClick = onRefresh) {
-                Icon(Icons.Default.Refresh, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Refresh")
+            Spacer(modifier = Modifier.height(20.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TextButton(onClick = onRefresh) {
+                    Icon(Icons.Default.Refresh, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Refresh")
+                }
+                OutlinedButton(onClick = onDemoDeviceClick) {
+                    Icon(Icons.Default.DevicesOther, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Inspect Device Details")
+                }
             }
         }
     }

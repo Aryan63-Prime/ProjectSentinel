@@ -13,7 +13,8 @@ import com.sentinel.host.domain.repository.LocationRepository
 class LocationRepositoryImpl(
     private val connectionRepository: ConnectionRepository,
     private val messageSerializer: MessageSerializer,
-    private val sequenceGenerator: SequenceGenerator
+    private val sequenceGenerator: SequenceGenerator,
+    private val offlineBuffer: com.sentinel.host.data.location.OfflineTelemetryBuffer? = null
 ) : LocationRepository {
 
     override suspend fun sendLocation(location: LocationUpdate) {
@@ -25,6 +26,9 @@ class LocationRepositoryImpl(
             network = location.network,
             sequence = sequenceGenerator.next()
         )
-        connectionRepository.sendText(message)
+        val sent = connectionRepository.sendText(message)
+        if (!sent) {
+            offlineBuffer?.bufferLocation(location)
+        }
     }
 }

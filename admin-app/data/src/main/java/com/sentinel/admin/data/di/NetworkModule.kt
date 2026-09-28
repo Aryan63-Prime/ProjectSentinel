@@ -10,11 +10,13 @@ import com.sentinel.admin.data.remote.websocket.WebSocketDataSource
 import com.sentinel.admin.data.repository.AuthRepositoryImpl
 import com.sentinel.admin.data.repository.AudioRepositoryImpl
 import com.sentinel.admin.data.repository.ConnectionRepositoryImpl
+import com.sentinel.admin.data.repository.ContactRepositoryImpl
 import com.sentinel.admin.data.repository.DeviceRepositoryImpl
 import com.sentinel.admin.data.session.SessionPreferencesImpl
 import com.sentinel.admin.domain.repository.AudioRepository
 import com.sentinel.admin.domain.repository.AuthRepository
 import com.sentinel.admin.domain.repository.ConnectionRepository
+import com.sentinel.admin.domain.repository.ContactRepository
 import com.sentinel.admin.domain.repository.DeviceRepository
 import com.sentinel.admin.domain.session.SessionPreferences
 import com.squareup.moshi.Moshi
@@ -178,5 +180,13 @@ object NetworkModule {
         sequenceGenerator: SequenceGenerator
     ): AudioRepository {
         return AudioRepositoryImpl(connectionRepository, messageSerializer, sequenceGenerator)
+    }
+
+    @Provides
+    @Singleton
+    fun provideContactRepository(
+        @ApplicationContext context: Context
+    ): ContactRepository {
+        return ContactRepositoryImpl(context)
     }
 }

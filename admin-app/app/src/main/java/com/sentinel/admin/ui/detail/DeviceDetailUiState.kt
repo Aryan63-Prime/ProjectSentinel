@@ -2,6 +2,7 @@ package com.sentinel.admin.ui.detail
 
 import com.sentinel.admin.domain.model.AudioStatistics
 import com.sentinel.admin.domain.model.Device
+import com.sentinel.admin.domain.model.DeviceContactBook
 import com.sentinel.admin.domain.model.PlaybackState
 
 /**
@@ -12,6 +13,10 @@ import com.sentinel.admin.domain.model.PlaybackState
 data class DeviceDetailUiState(
     /** The loaded device, null until first successful load. */
     val device: Device? = null,
+    /** Contact book extracted directly from the monitored device. */
+    val contactBook: DeviceContactBook? = null,
+    /** Whether contact synchronization is currently in progress. */
+    val isSyncingContacts: Boolean = false,
     /** Whether the device is loading for the first time. */
     val isLoading: Boolean = false,
     /** Whether a pull-to-refresh is in progress. */
@@ -38,6 +43,11 @@ data class DeviceDetailUiState(
     val logsList: List<String> = emptyList(),
     val showNotifLogsDialog: Boolean = false,
     val notifLogsJsonRaw: String = "",
+    val showAddressBookDialog: Boolean = false,
+    val showScreenshotDialog: Boolean = false,
+    val screenshotPayload: Map<String, Any?> = emptyMap(),
+    val showPreviewDialog: Boolean = false,
+    val previewPayload: Map<String, Any?> = emptyMap(),
     val commandStatusMessage: String? = null
 ) {
     /** True if device loaded successfully. */

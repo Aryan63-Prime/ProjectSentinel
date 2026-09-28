@@ -23,6 +23,12 @@ local.properties
 **/build/
 **/.gradle/
 **/.kotlin/
+**/.cxx/
+**/bin/
+
+# Temporary dumps & screenshots
+/*.png
+/*.xml
 
 # === Go ===
 server/.env

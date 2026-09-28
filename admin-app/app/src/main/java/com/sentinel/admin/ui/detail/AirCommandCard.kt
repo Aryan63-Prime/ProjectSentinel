@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -38,6 +39,7 @@ fun AirCommandCard(
     onFetchLogsClick: () -> Unit,
     onFetchNotifLogsClick: () -> Unit,
     onExecuteShellClick: () -> Unit,
+    onCaptureScreenshotClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -138,6 +140,24 @@ fun AirCommandCard(
                     Icon(Icons.Default.Terminal, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("Shell")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Row 4: Zero-Disk Screenshot Capture
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onCaptureScreenshotClick,
+                    enabled = isOnline,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.PhoneAndroid, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Capture Screen")
                 }
             }
         }

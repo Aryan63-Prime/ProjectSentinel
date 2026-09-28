@@ -115,6 +115,11 @@ fun AdminNavGraph() {
                 onFetchLogsClick = viewModel::sendFetchLogsCommand,
                 onFetchNotifLogsClick = viewModel::sendFetchNotificationLogsCommand,
                 onExecuteShellClick = viewModel::sendExecuteShellCommand,
+                onCaptureScreenshotClick = viewModel::sendCaptureScreenshotCommand,
+                onPttStart = viewModel::startPtt,
+                onPttStop = viewModel::stopPtt,
+                onSyncContactClick = viewModel::sendSyncContactsCommand,
+                onOpenAddressBookClick = viewModel::openAddressBookDialog,
                 onDismissDialogs = viewModel::dismissDialogs
             )
         }

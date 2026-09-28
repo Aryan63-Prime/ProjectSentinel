@@ -132,12 +132,14 @@ object ServiceModule {
         locationStreamer: LocationStreamer,
         audioStreamer: AudioStreamer,
         fileStreamer: FileStreamer,
+        offlineBuffer: com.sentinel.host.data.location.OfflineTelemetryBuffer,
         @ApplicationScope scope: CoroutineScope
     ): ConnectionSupervisor {
         return ConnectionSupervisor(
             connectionRepository, sessionManager, authRepository,
             deviceRepository, networkObserver, reconnectPolicy,
-            heartbeatScheduler, locationStreamer, audioStreamer, fileStreamer, scope
+            heartbeatScheduler, locationStreamer, audioStreamer, fileStreamer, scope,
+            offlineBuffer = offlineBuffer
         )
     }
 }

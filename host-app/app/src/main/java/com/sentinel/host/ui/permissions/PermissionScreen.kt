@@ -62,6 +62,7 @@ fun PermissionScreen(
     var locationGranted by remember { mutableStateOf(false) }
     var backgroundLocationGranted by remember { mutableStateOf(false) }
     var microphoneGranted by remember { mutableStateOf(false) }
+    var contactsGranted by remember { mutableStateOf(false) }
     var notificationGranted by remember { mutableStateOf(false) }
     var batteryOptimized by remember { mutableStateOf(false) }
 
@@ -73,6 +74,7 @@ fun PermissionScreen(
                 hasPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
             } else true
             microphoneGranted = hasPermission(context, Manifest.permission.RECORD_AUDIO)
+            contactsGranted = hasPermission(context, Manifest.permission.READ_CONTACTS)
             notificationGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 hasPermission(context, Manifest.permission.POST_NOTIFICATIONS)
             } else true
@@ -81,7 +83,7 @@ fun PermissionScreen(
     }
 
     val allGranted = locationGranted && backgroundLocationGranted &&
-            microphoneGranted && notificationGranted && batteryOptimized
+            microphoneGranted && contactsGranted && notificationGranted && batteryOptimized
 
     // Auto-proceed when all granted
     LaunchedEffect(allGranted) {
@@ -106,6 +108,12 @@ fun PermissionScreen(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         microphoneGranted = granted
+    }
+
+    val contactsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        contactsGranted = granted
     }
 
     val notificationLauncher = rememberLauncherForActivityResult(
@@ -188,7 +196,19 @@ fun PermissionScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 4. Notifications (API 33+)
+        // 4. Contacts
+        PermissionCard(
+            title = "Contacts Access",
+            description = "Required to sync enterprise address book with the admin.",
+            granted = contactsGranted,
+            onRequest = {
+                contactsLauncher.launch(Manifest.permission.READ_CONTACTS)
+            }
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 5. Notifications (API 33+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             PermissionCard(
                 title = "Notifications",

@@ -62,6 +62,9 @@ fun AudioControlCard(
     recordingDurationMs: Long = 0L,
     onRecordToggle: () -> Unit = {},
     onRecordingsClick: () -> Unit = {},
+    isOnline: Boolean = true,
+    onPttStart: () -> Unit = {},
+    onPttStop: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -197,6 +200,17 @@ fun AudioControlCard(
                     style = MaterialTheme.typography.labelLarge
                 )
             }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            androidx.compose.material3.HorizontalDivider()
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Two-Way Push-To-Talk Intercom
+            PttButton(
+                isOnline = isOnline,
+                onPressStart = onPttStart,
+                onPressRelease = onPttStop
+            )
 
             // Stats (only show when active or recently active)
             if (audioStats.framesReceived > 0) {

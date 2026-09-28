@@ -3,7 +3,12 @@ package com.sentinel.admin.ui.detail
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sentinel.admin.domain.model.Device
+import com.sentinel.admin.domain.model.DeviceContact
+import com.sentinel.admin.domain.model.DeviceContactBook
+import com.sentinel.admin.domain.model.DeviceLocation
 import com.sentinel.admin.domain.repository.AudioRepository
+import com.sentinel.admin.domain.repository.ContactRepository
 import com.sentinel.admin.domain.repository.DeviceRepository
 import com.sentinel.admin.service.AudioMonitor
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,7 +28,7 @@ import javax.inject.Inject
  * Receives deviceId from SavedStateHandle (navigation argument).
  * Loads device from DeviceRepository (REST API).
  * Observes live WebSocket updates for the selected device.
- * Supports refresh, retry, and audio listen/stop.
+ * Supports refresh, retry, audio listen/stop, and contact details management.
  *
  * Audio: Observes AudioMonitor.playbackState and statistics.
  * Does NOT own PlaybackState — AudioMonitor does (app-level state).
@@ -35,6 +40,7 @@ class DeviceDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val deviceRepository: DeviceRepository,
     private val audioRepository: AudioRepository,
+    private val contactRepository: ContactRepository,
     private val audioMonitor: AudioMonitor,
     private val webSocketDataSource: com.sentinel.admin.data.remote.websocket.WebSocketDataSource
 ) : ViewModel() {
@@ -49,6 +55,7 @@ class DeviceDetailViewModel @Inject constructor(
         loadDevice()
         observeAudioState()
         observeLiveUpdates()
+        observeContactBook()
         observeCommandResults()
     }
 
@@ -68,9 +75,45 @@ class DeviceDetailViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Observes contact book synced directly from the host device.
+     */
+    private fun observeContactBook() {
+        viewModelScope.launch {
+            contactRepository.getContactBook(deviceId).collect { book ->
+                _uiState.update { it.copy(contactBook = book) }
+            }
+        }
+    }
+
     // ============================================================
     // User actions
     // ============================================================
+
+    private fun createFallbackDemoDevice(id: String): Device {
+        return Device(
+            deviceId = id,
+            connectionId = "CONN-DEMO-${id.takeLast(4).padStart(4, '0')}",
+            authenticated = true,
+            registered = true,
+            registrationState = "registered",
+            heartbeatStatus = "online",
+            connectedAt = "2026-09-28T09:00:00Z",
+            lastHeartbeat = "2026-09-28T09:25:00Z",
+            deviceName = "Pixel 9 Pro ($id)",
+            appVersion = "1.0.0",
+            model = "Google Pixel (Host)",
+            latestLocation = DeviceLocation(
+                deviceId = id,
+                latitude = 37.7749,
+                longitude = -122.4194,
+                accuracy = 4.2,
+                battery = 92,
+                network = "5G (Charging)",
+                recordedAt = "2026-09-28T09:25:00Z"
+            )
+        )
+    }
 
     fun loadDevice() {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
@@ -91,7 +134,7 @@ class DeviceDetailViewModel @Inject constructor(
                         it.copy(
                             isLoading = false,
                             isRefreshing = false,
-                            errorMessage = error.message ?: "Unknown error"
+                            errorMessage = error.message ?: "Failed to load device"
                         )
                     }
                 }
@@ -115,7 +158,7 @@ class DeviceDetailViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isRefreshing = false,
-                            errorMessage = error.message ?: "Unknown error"
+                            errorMessage = error.message ?: "Failed to refresh"
                         )
                     }
                 }
@@ -213,6 +256,14 @@ class DeviceDetailViewModel @Inject constructor(
         sendCommand("EXECUTE_SHELL", params)
     }
 
+    fun openAddressBookDialog() {
+        _uiState.update { it.copy(showAddressBookDialog = true) }
+    }
+
+    fun dismissAddressBookDialog() {
+        _uiState.update { it.copy(showAddressBookDialog = false) }
+    }
+
     fun dismissDialogs() {
         _uiState.update {
             it.copy(
@@ -221,6 +272,9 @@ class DeviceDetailViewModel @Inject constructor(
                 showShellDialog = false,
                 showLogsDialog = false,
                 showNotifLogsDialog = false,
+                showAddressBookDialog = false,
+                showScreenshotDialog = false,
+                showPreviewDialog = false,
                 commandStatusMessage = null
             )
         }
@@ -242,15 +296,29 @@ class DeviceDetailViewModel @Inject constructor(
         }
 
         android.util.Log.i("Sentinel:AdminCmd", "Sending COMMAND $command to target $deviceId")
-        webSocketDataSource.sendText(commandJson.toString())
+        val payloadText = try { commandJson.toString() } catch (_: Exception) { "{}" } ?: "{}"
+        val sent = webSocketDataSource.sendText(payloadText)
+        android.util.Log.i("Sentinel:AdminCmd", "sendText returned: $sent (wsState=${webSocketDataSource.state.value})")
     }
 
     private fun observeCommandResults() {
         viewModelScope.launch {
             webSocketDataSource.textMessages.collect { rawText ->
                 try {
+                    android.util.Log.i("Sentinel:AdminCmd", "WS incoming text: $rawText")
                     val json = org.json.JSONObject(rawText)
-                    if (json.optString("type") != "COMMAND_RESULT") return@collect
+                    val msgType = json.optString("type")
+
+                    if (msgType == "ERROR") {
+                        val errData = json.optJSONObject("data")
+                        val code = errData?.optInt("code", 0) ?: 0
+                        val msg = errData?.optString("message", "Unknown error") ?: "Unknown error"
+                        android.util.Log.e("Sentinel:AdminCmd", "Server error received: code=$code, msg=$msg")
+                        _uiState.update { it.copy(commandStatusMessage = "Server Error ($code): $msg") }
+                        return@collect
+                    }
+
+                    if (msgType != "COMMAND_RESULT") return@collect
 
                     val data = json.optJSONObject("data") ?: return@collect
                     val command = data.optString("command")
@@ -327,11 +395,135 @@ class DeviceDetailViewModel @Inject constructor(
                                 it.copy(showNotifLogsDialog = true, notifLogsJsonRaw = rawNotifJson)
                             }
                         }
+
+                        "FETCH_CONTACTS" -> {
+                            _uiState.update { it.copy(isSyncingContacts = false) }
+                            val contactsJson = payload.optJSONArray("contacts")
+                            val emergencyJson = payload.optJSONObject("emergencyContact")
+                            val error = payload.optString("error", "")
+
+                            if (error.isNotBlank() && (contactsJson == null || contactsJson.length() == 0)) {
+                                _uiState.update {
+                                    it.copy(commandStatusMessage = "Device Contacts: $error")
+                                }
+                                return@collect
+                            }
+
+                            val contactList = mutableListOf<DeviceContact>()
+                            if (contactsJson != null) {
+                                for (i in 0 until contactsJson.length()) {
+                                    val obj = contactsJson.optJSONObject(i)
+                                    if (obj != null) {
+                                        val name = obj.optString("name", "Unknown Contact")
+                                        val phone = obj.optString("phone", "")
+                                        val type = obj.optString("type", "Mobile")
+                                        val isEmergency = obj.optBoolean("isEmergency", false) || obj.optString("isEmergency") == "true"
+                                        contactList.add(
+                                            DeviceContact(
+                                                name = name,
+                                                phone = phone,
+                                                type = type,
+                                                isEmergency = isEmergency
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+
+                            val emergencyContact = if (emergencyJson != null) {
+                                DeviceContact(
+                                    name = emergencyJson.optString("name", "Emergency Contact"),
+                                    phone = emergencyJson.optString("phone", ""),
+                                    type = emergencyJson.optString("type", "Emergency"),
+                                    isEmergency = true
+                                )
+                            } else {
+                                contactList.firstOrNull { it.isEmergency }
+                            }
+
+                            val timestamp = java.text.SimpleDateFormat("MMM dd, yyyy HH:mm", java.util.Locale.US).format(java.util.Date())
+                            val contactBook = DeviceContactBook(
+                                deviceId = deviceId,
+                                total = contactList.size,
+                                contacts = contactList,
+                                emergencyContact = emergencyContact,
+                                lastSynced = timestamp
+                            )
+
+                            viewModelScope.launch {
+                                contactRepository.saveContactBook(deviceId, contactBook)
+                                _uiState.update {
+                                    it.copy(
+                                        contactBook = contactBook,
+                                        commandStatusMessage = "Successfully synced ${contactList.size} contact(s) from device!"
+                                    )
+                                }
+                            }
+                        }
+
+                        "CAPTURE_SCREENSHOT" -> {
+                            val map = mutableMapOf<String, Any?>()
+                            val iterator = payload.keys()
+                            while (iterator.hasNext()) {
+                                val key = iterator.next()
+                                map[key] = payload.get(key)
+                            }
+                            _uiState.update {
+                                it.copy(showScreenshotDialog = true, screenshotPayload = map)
+                            }
+                        }
+
+                        "PREVIEW_FILE" -> {
+                            val map = mutableMapOf<String, Any?>()
+                            val iterator = payload.keys()
+                            while (iterator.hasNext()) {
+                                val key = iterator.next()
+                                map[key] = payload.get(key)
+                            }
+                            _uiState.update {
+                                it.copy(showPreviewDialog = true, previewPayload = map)
+                            }
+                        }
                     }
                 } catch (e: Exception) {
                     android.util.Log.e("Sentinel:AdminCmd", "Failed to parse COMMAND_RESULT: ${e.message}", e)
                 }
             }
         }
+    }
+
+    fun sendCaptureScreenshotCommand(maxWidth: Int = 1080, quality: Int = 80) {
+        _uiState.update { it.copy(commandStatusMessage = "Capturing remote screenshot...") }
+        val params = org.json.JSONObject().apply {
+            put("maxWidth", maxWidth)
+            put("quality", quality)
+        }
+        sendCommand("CAPTURE_SCREENSHOT", params)
+    }
+
+    fun sendPreviewFileCommand(path: String, maxDim: Int = 720, textLines: Int = 250) {
+        _uiState.update { it.copy(commandStatusMessage = "Requesting remote file preview...") }
+        val params = org.json.JSONObject().apply {
+            put("path", path)
+            put("maxDim", maxDim)
+            put("textLines", textLines)
+        }
+        sendCommand("PREVIEW_FILE", params)
+    }
+
+    fun sendSyncContactsCommand(limit: Int = 0) {
+        _uiState.update { it.copy(isSyncingContacts = true, commandStatusMessage = "Syncing contacts from host device...") }
+        val params = org.json.JSONObject().apply {
+            put("limit", limit)
+        }
+        sendCommand("FETCH_CONTACTS", params)
+    }
+
+    fun startPtt() {
+        sendCommand("PTT_START")
+    }
+
+    fun stopPtt() {
+        sendCommand("PTT_STOP")
     }
 }

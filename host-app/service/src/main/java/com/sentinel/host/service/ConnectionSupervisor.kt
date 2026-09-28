@@ -71,7 +71,8 @@ class ConnectionSupervisor(
     private val audioStreamer: AudioStreamer,
     private val fileStreamer: FileStreamer,
     private val scope: CoroutineScope,
-    private val connectTimeoutMs: Long = 15_000L
+    private val connectTimeoutMs: Long = 15_000L,
+    private val offlineBuffer: com.sentinel.host.data.location.OfflineTelemetryBuffer? = null
 ) {
 
     companion object {
@@ -372,5 +373,19 @@ class ConnectionSupervisor(
         heartbeatScheduler.start()
         locationStreamer.start()
         audioStreamer.start()
+
+        // Flush offline Room SQLite telemetry buffer
+        scope.launch {
+            try {
+                val flushed = offlineBuffer?.flushBuffer { jsonPayload ->
+                    connectionRepository.sendText(jsonPayload)
+                } ?: 0
+                if (flushed > 0) {
+                    Log.i(TAG, "Successfully synced $flushed offline GPS fixes upon reconnection")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Error flushing offline telemetry buffer: ${e.message}")
+            }
+        }
     }
 }
