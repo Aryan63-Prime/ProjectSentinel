@@ -89,6 +89,14 @@ func (s *Session) AuthenticatedDeviceID() string {
 	return s.deviceID
 }
 
+// DeviceID returns the current device identity (registered or authenticated).
+func (s *Session) DeviceID() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.deviceID
+}
+
 // IsRegistered reports whether the session completed device registration.
 func (s *Session) IsRegistered() bool {
 	s.mu.RLock()
