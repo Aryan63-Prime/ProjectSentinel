@@ -44,7 +44,8 @@ func (s *Service) SetForwarder(forwarder FrameForwarder) {
 
 // StartListening registers an admin connection as the listener for a device.
 func (s *Service) StartListening(ctx context.Context, adminConnectionID string, targetDeviceID string) error {
-	if strings.TrimSpace(targetDeviceID) == "" {
+	cleanTarget := strings.TrimSpace(targetDeviceID)
+	if cleanTarget == "" {
 		return ErrMissingDeviceID
 	}
 	if strings.TrimSpace(adminConnectionID) == "" {
@@ -55,12 +56,28 @@ func (s *Service) StartListening(ctx context.Context, adminConnectionID string, 
 		return nil
 	}
 
-	return s.listeners.SetListener(ctx, targetDeviceID, adminConnectionID)
+	if err := s.listeners.SetListener(ctx, cleanTarget, adminConnectionID); err != nil {
+		return err
+	}
+
+	// Register aliases so both generic token and distinct hardware callsigns route correctly
+	if strings.HasPrefix(cleanTarget, "HOST-001-") {
+		_ = s.listeners.SetListener(ctx, "HOST-001", adminConnectionID)
+		suffix := strings.TrimPrefix(cleanTarget, "HOST-001-")
+		_ = s.listeners.SetListener(ctx, "HOST-"+suffix, adminConnectionID)
+	}
+	if strings.Contains(cleanTarget, "_") {
+		base := strings.SplitN(cleanTarget, "_", 2)[0]
+		_ = s.listeners.SetListener(ctx, base, adminConnectionID)
+	}
+
+	return nil
 }
 
 // StopListening removes the listener for a device.
 func (s *Service) StopListening(ctx context.Context, targetDeviceID string) error {
-	if strings.TrimSpace(targetDeviceID) == "" {
+	cleanTarget := strings.TrimSpace(targetDeviceID)
+	if cleanTarget == "" {
 		return ErrMissingDeviceID
 	}
 
@@ -68,7 +85,18 @@ func (s *Service) StopListening(ctx context.Context, targetDeviceID string) erro
 		return nil
 	}
 
-	return s.listeners.RemoveListener(ctx, targetDeviceID)
+	_ = s.listeners.RemoveListener(ctx, cleanTarget)
+	if strings.HasPrefix(cleanTarget, "HOST-001-") {
+		_ = s.listeners.RemoveListener(ctx, "HOST-001")
+		suffix := strings.TrimPrefix(cleanTarget, "HOST-001-")
+		_ = s.listeners.RemoveListener(ctx, "HOST-"+suffix)
+	}
+	if strings.Contains(cleanTarget, "_") {
+		base := strings.SplitN(cleanTarget, "_", 2)[0]
+		_ = s.listeners.RemoveListener(ctx, base)
+	}
+
+	return nil
 }
 
 // RouteFrame validates and forwards a binary audio frame to the listening admin.
@@ -85,6 +113,16 @@ func (s *Service) RouteFrame(ctx context.Context, sourceDeviceID string, frame [
 	connectionID, found, err := s.listeners.GetListener(ctx, sourceDeviceID)
 	if err != nil {
 		return fmt.Errorf("get listener: %w", err)
+	}
+	if !found {
+		// Fallback to base "HOST-001" listener
+		if strings.HasPrefix(sourceDeviceID, "HOST-001") {
+			connectionID, found, _ = s.listeners.GetListener(ctx, "HOST-001")
+		}
+	}
+	if !found && strings.Contains(sourceDeviceID, "_") {
+		base := strings.SplitN(sourceDeviceID, "_", 2)[0]
+		connectionID, found, _ = s.listeners.GetListener(ctx, base)
 	}
 	if !found {
 		return nil

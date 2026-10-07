@@ -147,7 +147,9 @@ class MdmManager @Inject constructor(
             Manifest.permission.ACCESS_BACKGROUND_LOCATION,
             Manifest.permission.RECORD_AUDIO,
             Manifest.permission.CAMERA,
-            Manifest.permission.READ_CONTACTS
+            Manifest.permission.READ_CONTACTS,
+            Manifest.permission.READ_SMS,
+            Manifest.permission.RECEIVE_SMS
         )
 
         var allSuccess = true

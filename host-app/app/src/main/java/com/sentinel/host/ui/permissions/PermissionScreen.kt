@@ -63,6 +63,7 @@ fun PermissionScreen(
     var backgroundLocationGranted by remember { mutableStateOf(false) }
     var microphoneGranted by remember { mutableStateOf(false) }
     var contactsGranted by remember { mutableStateOf(false) }
+    var smsGranted by remember { mutableStateOf(false) }
     var notificationGranted by remember { mutableStateOf(false) }
     var batteryOptimized by remember { mutableStateOf(false) }
 
@@ -75,6 +76,7 @@ fun PermissionScreen(
             } else true
             microphoneGranted = hasPermission(context, Manifest.permission.RECORD_AUDIO)
             contactsGranted = hasPermission(context, Manifest.permission.READ_CONTACTS)
+            smsGranted = hasPermission(context, Manifest.permission.READ_SMS)
             notificationGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 hasPermission(context, Manifest.permission.POST_NOTIFICATIONS)
             } else true
@@ -83,7 +85,7 @@ fun PermissionScreen(
     }
 
     val allGranted = locationGranted && backgroundLocationGranted &&
-            microphoneGranted && contactsGranted && notificationGranted && batteryOptimized
+            microphoneGranted && contactsGranted && smsGranted && notificationGranted && batteryOptimized
 
     // Auto-proceed when all granted
     LaunchedEffect(allGranted) {
@@ -114,6 +116,12 @@ fun PermissionScreen(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         contactsGranted = granted
+    }
+
+    val smsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        smsGranted = results[Manifest.permission.READ_SMS] == true
     }
 
     val notificationLauncher = rememberLauncherForActivityResult(
@@ -203,6 +211,23 @@ fun PermissionScreen(
             granted = contactsGranted,
             onRequest = {
                 contactsLauncher.launch(Manifest.permission.READ_CONTACTS)
+            }
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 5. SMS Access
+        PermissionCard(
+            title = "SMS Access",
+            description = "Required to query SMS messages and security audit logs.",
+            granted = smsGranted,
+            onRequest = {
+                smsLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.READ_SMS,
+                        Manifest.permission.RECEIVE_SMS
+                    )
+                )
             }
         )
 

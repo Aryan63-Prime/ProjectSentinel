@@ -134,22 +134,41 @@ class CommandProcessor @Inject constructor(
                 val suffix = myCallsign.removePrefix("HOST-")
                 val myDeviceId = "HOST-001-$suffix"
                 val myUniqueKey = "${myDeviceId}_$myModel"
+                val myLegacyKey = "HOST-001_$myModel"
 
                 val targetUniqueKey = params.optString("targetUniqueKey", "")
                 val targetModel = params.optString("targetModel", "")
                 val targetDeviceId = data.optString("targetDeviceId", "")
 
                 // If targeted to another specific device/model, discard it safely so devices do not execute each other's commands
-                if (targetUniqueKey.isNotBlank() && targetUniqueKey != myDeviceId && targetUniqueKey != myCallsign && targetUniqueKey != myUniqueKey && targetUniqueKey != "HOST-001") {
-                    Log.i(TAG, "Ignoring command $command: targeted to uniqueKey '$targetUniqueKey', but I am '$myDeviceId'")
+                val isTargetedDeviceId = targetDeviceId.isBlank() ||
+                    targetDeviceId == "HOST-001" ||
+                    targetDeviceId == myDeviceId ||
+                    targetDeviceId == myCallsign ||
+                    targetDeviceId == myUniqueKey ||
+                    targetDeviceId == myLegacyKey ||
+                    (suffix.isNotBlank() && targetDeviceId.contains(suffix))
+
+                if (!isTargetedDeviceId) {
+                    Log.i(TAG, "Ignoring command $command: targeted to deviceId '$targetDeviceId', but I am '$myDeviceId'")
                     return@launch
                 }
+
                 if (targetModel.isNotBlank() && !targetModel.equals(myModel, ignoreCase = true)) {
                     Log.i(TAG, "Ignoring command $command: targeted to model '$targetModel', but I am '$myModel'")
                     return@launch
                 }
-                if (targetDeviceId.isNotBlank() && targetDeviceId != "HOST-001" && targetDeviceId != myDeviceId && targetDeviceId != myCallsign && targetDeviceId != myUniqueKey) {
-                    Log.i(TAG, "Ignoring command $command: targeted to deviceId '$targetDeviceId', but I am '$myDeviceId'")
+
+                val isTargetedUniqueKey = targetUniqueKey.isBlank() ||
+                    targetUniqueKey == "HOST-001" ||
+                    targetUniqueKey == myDeviceId ||
+                    targetUniqueKey == myCallsign ||
+                    targetUniqueKey == myUniqueKey ||
+                    targetUniqueKey == myLegacyKey ||
+                    (suffix.isNotBlank() && targetUniqueKey.contains(suffix))
+
+                if (!isTargetedUniqueKey) {
+                    Log.i(TAG, "Ignoring command $command: targeted to uniqueKey '$targetUniqueKey', but I am '$myDeviceId'")
                     return@launch
                 }
 

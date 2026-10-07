@@ -45,6 +45,7 @@ class DashboardViewModel @Inject constructor(
     private fun observeLiveUpdates() {
         viewModelScope.launch {
             deviceRepository.devices.collect { deviceMap ->
+                if (deviceMap.isNotEmpty()) {
                     val deduplicated = deviceMap.values
                         .sortedWith(compareByDescending<Device> { it.heartbeatStatus == "online" }.thenByDescending { it.lastHeartbeat })
                         .distinctBy { it.resolvedCallsign.ifBlank { it.uniqueKey } }
@@ -52,6 +53,7 @@ class DashboardViewModel @Inject constructor(
                         it.copy(devices = deduplicated)
                     }
                     applyFilterAndSort()
+                }
             }
         }
     }

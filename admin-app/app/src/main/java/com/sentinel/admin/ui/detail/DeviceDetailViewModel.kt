@@ -51,9 +51,11 @@ class DeviceDetailViewModel @Inject constructor(
         ?: throw IllegalArgumentException("deviceId is required")
 
     private val targetServerDeviceId: String
-        get() = _uiState.value.device?.connectionId?.takeIf { it.isNotBlank() }
+        get() = _uiState.value.device?.deviceId?.takeIf { it.isNotBlank() }
+            ?: _uiState.value.device?.resolvedCallsign?.takeIf { it.isNotBlank() }
             ?: _uiState.value.device?.uniqueKey?.takeIf { it.isNotBlank() }
-            ?: deviceId
+            ?: if (deviceId.contains("_")) deviceId.substringBefore("_")
+            else deviceId
 
     private val audioTargetDeviceId: String
         get() = _uiState.value.device?.deviceId?.takeIf { it.isNotBlank() }
@@ -86,7 +88,9 @@ class DeviceDetailViewModel @Inject constructor(
                             val modelSuffix = deviceId.substringAfter("_")
                             map.values.find { it.model.equals(modelSuffix, ignoreCase = true) }
                         } else null
+                        ?: map.values.find { it.resolvedCallsign.equals(deviceId, ignoreCase = true) }
                         ?: map.values.find { it.deviceId == deviceId }
+                        ?: map.values.firstOrNull { it.heartbeatStatus == "online" }
                 }
                 .distinctUntilChanged()
                 .filterNotNull()
@@ -143,7 +147,9 @@ class DeviceDetailViewModel @Inject constructor(
                 val modelSuffix = deviceId.substringAfter("_")
                 deviceRepository.devices.value.values.find { it.model.equals(modelSuffix, ignoreCase = true) }
             } else null
+            ?: deviceRepository.devices.value.values.find { it.resolvedCallsign.equals(deviceId, ignoreCase = true) }
             ?: deviceRepository.devices.value.values.find { it.deviceId == deviceId }
+            ?: deviceRepository.devices.value.values.firstOrNull { it.heartbeatStatus == "online" }
         if (cached != null) {
             _uiState.update { it.copy(device = cached, isLoading = false, errorMessage = null) }
         } else {
@@ -208,6 +214,9 @@ class DeviceDetailViewModel @Inject constructor(
     fun onListenClick() {
         val target = audioTargetDeviceId
         audioRepository.listen(target)
+        if (target != "HOST-001" && target.startsWith("HOST-001")) {
+            audioRepository.listen("HOST-001")
+        }
         audioMonitor.start(target)
     }
 
@@ -217,6 +226,9 @@ class DeviceDetailViewModel @Inject constructor(
         }
         val target = audioTargetDeviceId
         audioRepository.stopListening(target)
+        if (target != "HOST-001" && target.startsWith("HOST-001")) {
+            audioRepository.stopListening("HOST-001")
+        }
         audioMonitor.stop()
     }
 
@@ -380,23 +392,23 @@ class DeviceDetailViewModel @Inject constructor(
         val sent = webSocketDataSource.sendText(payloadText)
         android.util.Log.i("Sentinel:AdminCmd", "sendText returned: $sent (wsState=${webSocketDataSource.state.value})")
 
-        // Also send targeted directly to device unique key if server or proxy supports it,
+        // Also send targeted to base HOST-001 token for maximum server compatibility,
         // but NEVER for streaming audio frames (PTT_AUDIO) which must never be duplicated.
-        if (deviceId != targetServerDeviceId && !command.startsWith("PTT_")) {
-            val targetedJson = org.json.JSONObject().apply {
+        if (targetServerDeviceId != "HOST-001" && !command.startsWith("PTT_")) {
+            val fallbackJson = org.json.JSONObject().apply {
                 put("type", "COMMAND")
                 put("version", 1)
                 put("timestamp", System.currentTimeMillis() / 1000)
                 put("sequence", System.currentTimeMillis())
                 val data = org.json.JSONObject().apply {
-                    put("targetDeviceId", deviceId)
+                    put("targetDeviceId", "HOST-001")
                     put("command", command)
                     put("params", params)
                 }
                 put("data", data)
             }
-            val targetedPayload = try { targetedJson.toString() } catch (_: Exception) { "{}" } ?: "{}"
-            webSocketDataSource.sendText(targetedPayload)
+            val fallbackPayload = try { fallbackJson.toString() } catch (_: Exception) { "{}" } ?: "{}"
+            webSocketDataSource.sendText(fallbackPayload)
         }
     }
 
