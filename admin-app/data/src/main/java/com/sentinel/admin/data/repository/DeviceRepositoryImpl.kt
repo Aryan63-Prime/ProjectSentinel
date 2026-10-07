@@ -413,6 +413,24 @@ class DeviceRepositoryImpl(
             // Populate live map from REST snapshot keyed by unique device key (model/connectionId)
             val currentMap = _devices.value
             val deviceMap = LinkedHashMap<String, Device>(currentMap)
+
+            // Reconcile with server: mark devices not returned by the server as offline
+            val returnedKeys = deviceList.map { it.uniqueKey }.toSet()
+            val returnedConnectionIds = deviceList.map { it.connectionId }.filter { it.isNotBlank() }.toSet()
+            val returnedModels = deviceList.map { it.model }.filter { it.isNotBlank() && it != "Unknown" }.toSet()
+
+            for ((key, cachedDev) in currentMap) {
+                val isReturned = returnedKeys.contains(cachedDev.uniqueKey) ||
+                        returnedConnectionIds.contains(cachedDev.connectionId) ||
+                        (cachedDev.model.isNotBlank() && returnedModels.contains(cachedDev.model))
+                if (!isReturned && cachedDev.heartbeatStatus == "online") {
+                    val offlineDev = cachedDev.copy(heartbeatStatus = "offline")
+                    deviceMap[key] = offlineDev
+                    if (offlineDev.uniqueKey != key) deviceMap[offlineDev.uniqueKey] = offlineDev
+                    if (offlineDev.connectionId.isNotBlank()) deviceMap[offlineDev.connectionId] = offlineDev
+                }
+            }
+
             for (dev in deviceList) {
                 val existing = currentMap[dev.uniqueKey] ?: currentMap[dev.connectionId]
 
@@ -429,7 +447,7 @@ class DeviceRepositoryImpl(
 
                 val merged = dev.copy(
                     latestLocation = resolvedLocation,
-                    heartbeatStatus = if (existing?.heartbeatStatus == "online") "online" else dev.heartbeatStatus,
+                    heartbeatStatus = "online",
                     callsign = callsign
                 )
 
@@ -437,7 +455,7 @@ class DeviceRepositoryImpl(
                 if (merged.connectionId.isNotBlank()) {
                     deviceMap[merged.connectionId] = merged
                 }
-                if (!deviceMap.containsKey(merged.deviceId)) {
+                if (!deviceMap.containsKey(merged.deviceId) || deviceMap[merged.deviceId]?.heartbeatStatus != "online") {
                     deviceMap[merged.deviceId] = merged
                 }
             }
