@@ -30,6 +30,7 @@ class JitterBuffer(
     private val maxLateDistance: Int = 10,
     private val stableThreshold: Int = 50
 ) {
+    private val lock = Any()
 
     private val buffer = TreeMap<Long, ByteArray>()
 
@@ -43,10 +44,22 @@ class JitterBuffer(
     private var consecutiveInOrder: Int = 0
 
     // ---- Statistics ----
-    var received: Long = 0L; private set
-    var delivered: Long = 0L; private set
-    var droppedLate: Long = 0L; private set
-    var droppedDuplicate: Long = 0L; private set
+    private var _received: Long = 0L
+    private var _delivered: Long = 0L
+    private var _droppedLate: Long = 0L
+    private var _droppedDuplicate: Long = 0L
+
+    val received: Long
+        get() = synchronized(lock) { _received }
+
+    val delivered: Long
+        get() = synchronized(lock) { _delivered }
+
+    val droppedLate: Long
+        get() = synchronized(lock) { _droppedLate }
+
+    val droppedDuplicate: Long
+        get() = synchronized(lock) { _droppedDuplicate }
 
     /**
      * Result of pushing a frame.
@@ -72,12 +85,12 @@ class JitterBuffer(
      *
      * @return [PushResult] indicating whether the frame was accepted, duplicate, or late.
      */
-    fun push(sequence: Long, payload: ByteArray): PushResult {
-        received++
+    fun push(sequence: Long, payload: ByteArray): PushResult = synchronized(lock) {
+        _received++
 
         // Check for duplicate (always, regardless of playback state)
         if (buffer.containsKey(sequence)) {
-            droppedDuplicate++
+            _droppedDuplicate++
             return PushResult.DUPLICATE
         }
 
@@ -85,7 +98,7 @@ class JitterBuffer(
         if (playbackHead >= 0) {
             val distance = sequenceDistance(sequence, playbackHead)
             if (distance < -maxLateDistance) {
-                droppedLate++
+                _droppedLate++
                 return PushResult.LATE
             }
         }
@@ -111,7 +124,7 @@ class JitterBuffer(
      *
      * @return The next frame, a missing signal, or empty.
      */
-    fun pop(): PopResult {
+    fun pop(): PopResult = synchronized(lock) {
         if (buffer.isEmpty()) return PopResult.Empty
 
         // Initialize playback head on first pop — uses smallest buffered sequence
@@ -119,12 +132,13 @@ class JitterBuffer(
             playbackHead = buffer.firstKey()
         }
 
-        val firstKey = buffer.firstKey()
+        val firstEntry = buffer.firstEntry() ?: return PopResult.Empty
+        val firstKey = firstEntry.key
 
         // If the playback head matches the first buffered frame, deliver it
         if (firstKey == playbackHead) {
-            val payload = buffer.remove(firstKey)!!
-            delivered++
+            val payload = buffer.remove(firstKey) ?: return PopResult.Empty
+            _delivered++
             playbackHead = nextSequence(playbackHead)
 
             // Track stability for adaptive shrinking
@@ -147,30 +161,36 @@ class JitterBuffer(
 
         // First frame is behind playback head (shouldn't happen, but handle gracefully)
         buffer.remove(firstKey)
-        droppedLate++
+        _droppedLate++
         return PopResult.Empty
     }
 
     /**
      * Whether the buffer has enough frames for playback to start.
      */
-    fun isReady(): Boolean = buffer.size >= targetDepth
+    fun isReady(): Boolean = synchronized(lock) {
+        buffer.size >= targetDepth
+    }
 
     /**
      * Current number of frames in the buffer.
      */
-    fun size(): Int = buffer.size
+    fun size(): Int = synchronized(lock) {
+        buffer.size
+    }
 
     /**
      * Current adaptive target depth.
      */
-    fun currentTargetDepth(): Int = targetDepth
+    fun currentTargetDepth(): Int = synchronized(lock) {
+        targetDepth
+    }
 
     /**
      * Clears the buffer and resets state.
      * Does NOT reset statistics.
      */
-    fun clear() {
+    fun clear() = synchronized(lock) {
         buffer.clear()
         playbackHead = -1L
         targetDepth = minDepth
@@ -180,12 +200,12 @@ class JitterBuffer(
     /**
      * Resets everything including statistics.
      */
-    fun reset() {
+    fun reset() = synchronized(lock) {
         clear()
-        received = 0
-        delivered = 0
-        droppedLate = 0
-        droppedDuplicate = 0
+        _received = 0
+        _delivered = 0
+        _droppedLate = 0
+        _droppedDuplicate = 0
     }
 
     // ============================================================

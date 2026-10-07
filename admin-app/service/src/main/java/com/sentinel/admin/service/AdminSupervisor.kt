@@ -49,7 +49,8 @@ open class AdminSupervisor(
     private val reconnectPolicy: ReconnectPolicy,
     private val scope: CoroutineScope,
     private val clock: Clock,
-    private val audioMonitor: AudioMonitor? = null
+    private val audioMonitor: AudioMonitor? = null,
+    private val sessionPreferences: com.sentinel.admin.domain.session.SessionPreferences? = null
 ) : ConnectionSupervisor {
 
     companion object {
@@ -77,12 +78,35 @@ open class AdminSupervisor(
      */
     override fun start(serverUrl: String) {
         this.serverUrl = serverUrl
+        sessionPreferences?.let { it.serverUrl = serverUrl }
         intentionalDisconnect = false
         reconnectAttempt = 0
 
         startEventCollection()
         startHeartbeatEventCollection()
         connect()
+    }
+
+    /**
+     * Ensures the supervisor is connected. If it was previously started
+     * or has a saved serverUrl in sessionPreferences, reconnects automatically.
+     */
+    override fun ensureConnected() {
+        val currentState = _connectionState.value
+        if (currentState is ConnectionState.Ready ||
+            currentState is ConnectionState.Connecting ||
+            currentState is ConnectionState.Authenticating ||
+            currentState is ConnectionState.TransportConnected) {
+            return
+        }
+
+        val targetUrl = serverUrl.ifBlank { sessionPreferences?.serverUrl.orEmpty() }
+        if (targetUrl.isNotBlank()) {
+            Log.i(TAG, "ensureConnected: initiating connection to $targetUrl")
+            start(targetUrl)
+        } else {
+            Log.w(TAG, "ensureConnected: no server URL available to connect")
+        }
     }
 
     /**

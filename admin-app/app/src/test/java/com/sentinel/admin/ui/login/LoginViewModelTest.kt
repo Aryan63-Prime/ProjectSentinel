@@ -64,6 +64,12 @@ class LoginViewModelTest {
             _testConnectionState.value = ConnectionState.Disconnected
         }
 
+        var ensureConnectedCalled = false
+
+        override fun ensureConnected() {
+            ensureConnectedCalled = true
+        }
+
         fun setState(state: ConnectionState) {
             _testConnectionState.value = state
         }

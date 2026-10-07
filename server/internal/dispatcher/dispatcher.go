@@ -26,6 +26,7 @@ type Session interface {
 
 	IsAuthenticated() bool
 	AuthenticatedDeviceID() string
+	DeviceID() string
 }
 
 // Broadcaster sends messages to authenticated admin sessions.
@@ -153,9 +154,13 @@ func (d *Dispatcher) Dispatch(ctx context.Context, session Session, data []byte)
 						modelPtr = &m
 					}
 				}
+				deviceID := session.DeviceID()
+				if deviceID == "" {
+					deviceID = session.AuthenticatedDeviceID()
+				}
 				d.broadcastDeviceUpdate(protocol.DeviceUpdateMessage{
 					Event:     protocol.EventHeartbeat,
-					DeviceID:  session.AuthenticatedDeviceID(),
+					DeviceID:  deviceID,
 					Timestamp: &ts,
 					Model:     modelPtr,
 				})
@@ -176,9 +181,13 @@ func (d *Dispatcher) Dispatch(ctx context.Context, session Session, data []byte)
 					modelPtr = &m
 				}
 			}
+			deviceID := session.DeviceID()
+			if deviceID == "" {
+				deviceID = session.AuthenticatedDeviceID()
+			}
 			d.broadcastDeviceUpdate(protocol.DeviceUpdateMessage{
 				Event:     protocol.EventLocation,
-				DeviceID:  session.AuthenticatedDeviceID(),
+				DeviceID:  deviceID,
 				Latitude:  &loc.Latitude,
 				Longitude: &loc.Longitude,
 				Accuracy:  &loc.Accuracy,
@@ -198,7 +207,11 @@ func (d *Dispatcher) Dispatch(ctx context.Context, session Session, data []byte)
 		return d.dispatchWithErrors(response, err, message.Sequence)
 
 	case protocol.TypeFilesListRes:
-		err := d.file.HandleFilesListRes(ctx, session.AuthenticatedDeviceID(), message)
+		deviceID := session.DeviceID()
+		if deviceID == "" {
+			deviceID = session.AuthenticatedDeviceID()
+		}
+		err := d.file.HandleFilesListRes(ctx, deviceID, message)
 		return d.dispatchWithErrors(nil, err, message.Sequence)
 
 	case protocol.TypeFileDownloadReq:
@@ -206,7 +219,11 @@ func (d *Dispatcher) Dispatch(ctx context.Context, session Session, data []byte)
 		return d.dispatchWithErrors(response, err, message.Sequence)
 
 	case protocol.TypeFileDownloadRes:
-		err := d.file.HandleFileDownloadRes(ctx, session.AuthenticatedDeviceID(), message)
+		deviceID := session.DeviceID()
+		if deviceID == "" {
+			deviceID = session.AuthenticatedDeviceID()
+		}
+		err := d.file.HandleFileDownloadRes(ctx, deviceID, message)
 		return d.dispatchWithErrors(nil, err, message.Sequence)
 
 	case protocol.TypeFileChunkAck:
@@ -251,9 +268,13 @@ func (d *Dispatcher) Dispatch(ctx context.Context, session Session, data []byte)
 			accPtr = &acc
 		}
 		ts := time.Now().UTC().Format(time.RFC3339)
+		deviceID := session.DeviceID()
+		if deviceID == "" {
+			deviceID = session.AuthenticatedDeviceID()
+		}
 		d.broadcastDeviceUpdate(protocol.DeviceUpdateMessage{
 			Event:         protocol.EventEmergencySOS,
-			DeviceID:      session.AuthenticatedDeviceID(),
+			DeviceID:      deviceID,
 			Latitude:      &sos.Latitude,
 			Longitude:     &sos.Longitude,
 			Accuracy:      accPtr,
@@ -296,18 +317,23 @@ func (d *Dispatcher) DispatchBinary(ctx context.Context, session Session, data [
 
 	packetType := data[0]
 
+	deviceID := session.DeviceID()
+	if deviceID == "" {
+		deviceID = session.AuthenticatedDeviceID()
+	}
+
 	switch packetType {
 	case 0x01: // Audio
 		if d.audio == nil {
 			return nil
 		}
-		return d.audio.HandleFrame(ctx, session.AuthenticatedDeviceID(), data)
+		return d.audio.HandleFrame(ctx, deviceID, data)
 
 	case 0x02: // File Chunk
 		if d.file == nil {
 			return nil
 		}
-		return d.file.HandleBinaryChunk(ctx, session.AuthenticatedDeviceID(), data)
+		return d.file.HandleBinaryChunk(ctx, deviceID, data)
 
 	default:
 		return errors.New("unknown packet type")

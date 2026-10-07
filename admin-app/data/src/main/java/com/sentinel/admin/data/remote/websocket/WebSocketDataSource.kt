@@ -143,4 +143,7 @@ class WebSocketDataSource(private val client: OkHttpClient) {
     private fun cleanup() {
         webSocket = null
     }
+
+    /** For testing: emits an incoming text message. */
+    fun emitTestTextMessage(text: String): Boolean = _textMessages.tryEmit(text)
 }

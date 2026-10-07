@@ -8,6 +8,7 @@ import com.sentinel.admin.data.remote.SequenceGenerator
 import com.sentinel.admin.data.remote.protocol.MessageSerializer
 import com.sentinel.admin.domain.repository.AuthRepository
 import com.sentinel.admin.domain.repository.ConnectionRepository
+import com.sentinel.admin.domain.session.SessionPreferences
 import com.sentinel.admin.domain.supervisor.ConnectionSupervisor
 import com.sentinel.admin.domain.time.Clock
 import com.sentinel.admin.domain.time.SystemClock
@@ -113,7 +114,8 @@ object ServiceModule {
         reconnectPolicy: ReconnectPolicy,
         scope: CoroutineScope,
         clock: Clock,
-        audioMonitor: AudioMonitor
+        audioMonitor: AudioMonitor,
+        sessionPreferences: SessionPreferences
     ): ConnectionSupervisor {
         return AdminSupervisor(
             connectionRepository = connectionRepository,
@@ -124,7 +126,8 @@ object ServiceModule {
             reconnectPolicy = reconnectPolicy,
             scope = scope,
             clock = clock,
-            audioMonitor = audioMonitor
+            audioMonitor = audioMonitor,
+            sessionPreferences = sessionPreferences
         )
     }
 }

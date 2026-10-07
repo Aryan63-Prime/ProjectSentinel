@@ -18,4 +18,11 @@ interface ConnectionSupervisor {
 
     /** Disconnects and stops all monitoring. */
     fun stop()
+
+    /**
+     * Ensures the supervisor is connected. If it was previously started
+     * but is currently disconnected, triggers a reconnect using the last
+     * known server URL. No-op if already connected or if start() was never called.
+     */
+    fun ensureConnected()
 }

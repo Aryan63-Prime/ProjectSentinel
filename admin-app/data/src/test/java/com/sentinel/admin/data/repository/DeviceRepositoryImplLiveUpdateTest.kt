@@ -588,4 +588,52 @@ class DeviceRepositoryImplLiveUpdateTest {
         val vivoAfterEcho = repo.devices.value["HOST-001_I2401"]!!
         assertEquals(65, vivoAfterEcho.latestLocation?.battery)
     }
+
+    @Test
+    fun `telemetry report prioritizes active online device over stale cached HOST-001 entry`() = scope.runTest {
+        // Seed active online device with hardware ID / callsign
+        emitConnected("HOST-001-VIVO-2D2C", "Vivo V40 Pro (HOST-VIVO-2D2C)", model = "I2401", sequence = 1)
+        advanceUntilIdle()
+
+        val onlineVivo = repo.devices.value["HOST-001-VIVO-2D2C"]
+        assertNotNull(onlineVivo)
+        assertEquals("online", onlineVivo?.heartbeatStatus)
+
+        // Telemetry arrives with generic deviceId "HOST-001", model "I2401", callsign "HOST-VIVO-2D2C"
+        val telemetry = """
+            {
+                "type": "COMMAND_RESULT",
+                "version": 1,
+                "timestamp": 12345,
+                "sequence": 2,
+                "data": {
+                    "command": "TELEMETRY_REPORT",
+                    "success": true,
+                    "payload": {
+                        "deviceId": "HOST-001",
+                        "model": "I2401",
+                        "callsign": "HOST-VIVO-2D2C",
+                        "hardwareId": "VIVO-2D2C",
+                        "battery": 92,
+                        "network": "5G",
+                        "latitude": 28.5355,
+                        "longitude": 77.3910
+                    }
+                }
+            }
+        """.trimIndent()
+        eventsFlow.tryEmit(ConnectionEvent.CommandResultReceived(telemetry))
+        advanceUntilIdle()
+
+        // Active online device MUST be updated with 92% battery and location
+        val updatedVivo = repo.devices.value["HOST-001-VIVO-2D2C"]
+        assertNotNull(updatedVivo)
+        assertEquals(92, updatedVivo?.latestLocation?.battery)
+        assertEquals("5G", updatedVivo?.latestLocation?.network)
+        assertEquals(28.5355, updatedVivo?.latestLocation?.latitude ?: 0.0, 0.001)
+
+        // Stale "HOST-001" must NOT exist as a separate poisoned device
+        val staleEntry = repo.devices.value["HOST-001"]
+        assertTrue(staleEntry == null || staleEntry.uniqueKey == updatedVivo?.uniqueKey)
+    }
 }

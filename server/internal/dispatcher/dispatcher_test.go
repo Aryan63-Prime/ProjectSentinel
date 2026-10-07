@@ -301,6 +301,10 @@ func (s *testSession) AuthenticatedDeviceID() string {
 	return s.deviceID
 }
 
+func (s *testSession) DeviceID() string {
+	return s.deviceID
+}
+
 func (s *testSession) IsRegistered() bool {
 	return s.registered
 }
@@ -435,6 +439,118 @@ func TestDispatchEmergencySOSBroadcastsToAdmins(t *testing.T) {
 	}
 	if update.ImpactGForce == nil || *update.ImpactGForce != 4.8 {
 		t.Fatalf("expected impact 4.8, got %v", update.ImpactGForce)
+	}
+}
+
+func TestDispatchHeartbeatBroadcastsDeviceID(t *testing.T) {
+	dispatcher := newTestDispatcher("test_secret", time.Now)
+	broadcaster := &testBroadcaster{}
+	dispatcher.SetBroadcaster(broadcaster)
+
+	session := authenticatedSession()
+	session.deviceID = "HOST-001-VIVO-2D2C"
+
+	heartbeatPayload := envelope(t, protocol.TypeHeartbeat, 11, protocol.HeartbeatMessage{})
+	_ = dispatcher.Dispatch(context.Background(), session, heartbeatPayload)
+
+	if len(broadcaster.broadcasts) == 0 {
+		t.Fatal("expected heartbeat to broadcast to admins")
+	}
+
+	var msg protocol.Message
+	if err := json.Unmarshal(broadcaster.broadcasts[0], &msg); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	var update protocol.DeviceUpdateMessage
+	if err := json.Unmarshal(msg.Data, &update); err != nil {
+		t.Fatalf("failed to unmarshal update: %v", err)
+	}
+
+	if update.Event != protocol.EventHeartbeat {
+		t.Fatalf("expected heartbeat event, got %s", update.Event)
+	}
+	if update.DeviceID != "HOST-001-VIVO-2D2C" {
+		t.Fatalf("expected deviceId HOST-001-VIVO-2D2C, got %s", update.DeviceID)
+	}
+}
+
+func TestDispatchLocationBroadcastsDeviceID(t *testing.T) {
+	dispatcher := newTestDispatcher("test_secret", time.Now)
+	broadcaster := &testBroadcaster{}
+	dispatcher.SetBroadcaster(broadcaster)
+
+	session := authenticatedSession()
+	session.deviceID = "HOST-001-VIVO-2D2C"
+
+	locationPayload := envelope(t, protocol.TypeLocation, 12, protocol.LocationMessage{
+		Latitude:  28.6,
+		Longitude: 77.2,
+		Accuracy:  5,
+		Battery:   90,
+		Network:   "WIFI",
+	})
+	_ = dispatcher.Dispatch(context.Background(), session, locationPayload)
+
+	if len(broadcaster.broadcasts) == 0 {
+		t.Fatal("expected location to broadcast to admins")
+	}
+
+	var msg protocol.Message
+	if err := json.Unmarshal(broadcaster.broadcasts[0], &msg); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	var update protocol.DeviceUpdateMessage
+	if err := json.Unmarshal(msg.Data, &update); err != nil {
+		t.Fatalf("failed to unmarshal update: %v", err)
+	}
+
+	if update.Event != protocol.EventLocation {
+		t.Fatalf("expected location event, got %s", update.Event)
+	}
+	if update.DeviceID != "HOST-001-VIVO-2D2C" {
+		t.Fatalf("expected deviceId HOST-001-VIVO-2D2C, got %s", update.DeviceID)
+	}
+}
+
+func TestDispatchEmergencySOSBroadcastsDeviceID(t *testing.T) {
+	dispatcher := newTestDispatcher("test_secret", time.Now)
+	broadcaster := &testBroadcaster{}
+	dispatcher.SetBroadcaster(broadcaster)
+
+	session := authenticatedSession()
+	session.deviceID = "HOST-001-VIVO-2D2C"
+
+	sosPayload := envelope(t, protocol.TypeEmergencySOS, 13, protocol.EmergencySOSMessage{
+		TriggerReason: "FALL_DETECTED",
+		ImpactGForce:  3.5,
+		Latitude:      28.6,
+		Longitude:     77.2,
+		Accuracy:      5,
+		Battery:       90,
+	})
+	_ = dispatcher.Dispatch(context.Background(), session, sosPayload)
+
+	if len(broadcaster.broadcasts) == 0 {
+		t.Fatal("expected emergency SOS to broadcast to admins")
+	}
+
+	var msg protocol.Message
+	if err := json.Unmarshal(broadcaster.broadcasts[0], &msg); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	var update protocol.DeviceUpdateMessage
+	if err := json.Unmarshal(msg.Data, &update); err != nil {
+		t.Fatalf("failed to unmarshal update: %v", err)
+	}
+
+	if update.Event != protocol.EventEmergencySOS {
+		t.Fatalf("expected emergency_sos event, got %s", update.Event)
+	}
+	if update.DeviceID != "HOST-001-VIVO-2D2C" {
+		t.Fatalf("expected deviceId HOST-001-VIVO-2D2C, got %s", update.DeviceID)
 	}
 }
 

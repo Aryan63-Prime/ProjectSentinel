@@ -199,4 +199,71 @@ class JitterBufferTest {
 
         assertTrue(buffer.currentTargetDepth() > 2)
     }
+
+    @Test
+    fun `concurrent push and pop operations are thread safe`() {
+        val threadCount = 4
+        val framesPerThread = 500
+        val executor = java.util.concurrent.Executors.newFixedThreadPool(threadCount + 2)
+        val startLatch = java.util.concurrent.CountDownLatch(1)
+        val doneLatch = java.util.concurrent.CountDownLatch(threadCount + 2)
+        val errors = java.util.concurrent.CopyOnWriteArrayList<Throwable>()
+
+        for (t in 0 until 2) {
+            executor.submit {
+                try {
+                    startLatch.await()
+                    for (i in 0 until framesPerThread) {
+                        val seq = (t * framesPerThread + i).toLong()
+                        buffer.push(seq, byteArrayOf((seq and 0xFF).toByte()))
+                    }
+                } catch (e: Throwable) {
+                    errors.add(e)
+                } finally {
+                    doneLatch.countDown()
+                }
+            }
+        }
+
+        for (t in 0 until 2) {
+            executor.submit {
+                try {
+                    startLatch.await()
+                    for (i in 0 until framesPerThread) {
+                        buffer.pop()
+                    }
+                } catch (e: Throwable) {
+                    errors.add(e)
+                } finally {
+                    doneLatch.countDown()
+                }
+            }
+        }
+
+        for (t in 0 until 2) {
+            executor.submit {
+                try {
+                    startLatch.await()
+                    for (i in 0 until framesPerThread) {
+                        buffer.size()
+                        buffer.isReady()
+                        buffer.received
+                        buffer.delivered
+                        buffer.droppedDuplicate
+                        buffer.droppedLate
+                        buffer.currentTargetDepth()
+                    }
+                } catch (e: Throwable) {
+                    errors.add(e)
+                } finally {
+                    doneLatch.countDown()
+                }
+            }
+        }
+
+        startLatch.countDown()
+        assertTrue("Timeout waiting for concurrent operations", doneLatch.await(5, java.util.concurrent.TimeUnit.SECONDS))
+        executor.shutdown()
+        assertTrue("Unexpected concurrent exceptions: $errors", errors.isEmpty())
+    }
 }

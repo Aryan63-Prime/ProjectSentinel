@@ -484,6 +484,57 @@ class DeviceDetailViewModelTest {
         assertFalse(viewModel.uiState.value.showAddressBookDialog)
     }
 
+    @Test
+    fun `command result with hardware uniqueKey is accepted when screen uses legacy format`() = runTest(testDispatcher) {
+        fakeRepo.deviceResult = Result.success(TEST_DEVICE.copy(deviceId = "HOST-001", model = "I2401"))
+        val viewModel = createViewModel(deviceId = "HOST-001_I2401")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val json = """
+            {
+                "type": "COMMAND_RESULT",
+                "data": {
+                    "command": "LOCK_DEVICE",
+                    "success": false,
+                    "error": "HAL hardware failure",
+                    "model": "I2401",
+                    "uniqueKey": "HOST-001-VIVO-2D2C_I2401",
+                    "deviceId": "HOST-001-VIVO-2D2C"
+                }
+            }
+        """.trimIndent()
+        webSocketDataSource.emitTestTextMessage(json)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("HAL hardware failure", viewModel.uiState.value.mdmActionMessage)
+        assertEquals("Command failed: HAL hardware failure", viewModel.uiState.value.commandStatusMessage)
+    }
+
+    @Test
+    fun `command result from different model is filtered out`() = runTest(testDispatcher) {
+        fakeRepo.deviceResult = Result.success(TEST_DEVICE.copy(deviceId = "HOST-001", model = "I2401"))
+        val viewModel = createViewModel(deviceId = "HOST-001_I2401")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val json = """
+            {
+                "type": "COMMAND_RESULT",
+                "data": {
+                    "command": "LOCK_DEVICE",
+                    "success": false,
+                    "error": "Samsung error",
+                    "model": "SM-S928B",
+                    "uniqueKey": "HOST-001_SM-S928B",
+                    "deviceId": "HOST-001"
+                }
+            }
+        """.trimIndent()
+        webSocketDataSource.emitTestTextMessage(json)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.commandStatusMessage)
+    }
+
     // ============================================================
     // Test data
     // ============================================================

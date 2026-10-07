@@ -191,6 +191,24 @@ func (s *Service) deviceFromSnapshot(ctx context.Context, snapshot SessionSnapsh
 	if err != nil {
 		return Device{}, fmt.Errorf("get latest location: %w", err)
 	}
+	if !found && strings.HasPrefix(snapshot.DeviceID, "HOST-001-") {
+		suffix := strings.TrimPrefix(snapshot.DeviceID, "HOST-001-")
+		location, found, _ = s.locations.GetLatest(ctx, "HOST-"+suffix)
+		if !found {
+			location, found, _ = s.locations.GetLatest(ctx, "HOST-001")
+		}
+	}
+	if !found && strings.Contains(snapshot.DeviceID, "_") {
+		base := strings.SplitN(snapshot.DeviceID, "_", 2)[0]
+		location, found, _ = s.locations.GetLatest(ctx, base)
+		if !found && strings.HasPrefix(base, "HOST-001-") {
+			suffix := strings.TrimPrefix(base, "HOST-001-")
+			location, found, _ = s.locations.GetLatest(ctx, "HOST-"+suffix)
+			if !found {
+				location, found, _ = s.locations.GetLatest(ctx, "HOST-001")
+			}
+		}
+	}
 	if found {
 		device.LatestLocation = &location
 	}

@@ -1127,24 +1127,96 @@ class DeviceRepositoryImpl(
         val accuracy = (payload["accuracy"] as? Number)?.toDouble()
 
         _devices.update { current ->
-            val targetKey = if (uniqueKey != null && current.containsKey(uniqueKey)) {
-                uniqueKey
-            } else if (callsign != null && current.values.any { it.resolvedCallsign.equals(callsign, ignoreCase = true) }) {
-                current.values.find { it.resolvedCallsign.equals(callsign, ignoreCase = true) }?.uniqueKey
-            } else if (model != null) {
-                current.entries.find { it.value.model.equals(model, ignoreCase = true) }?.key
-                    ?: "${deviceId}_$model"
-            } else {
-                val candidates = current.values.filter { it.deviceId == deviceId }.distinctBy { it.uniqueKey }
-                if (candidates.size == 1) {
-                    candidates.first().uniqueKey
-                } else if (candidates.size > 1) {
-                    candidates.find { !it.model.equals("I2401", ignoreCase = true) }?.uniqueKey
-                        ?: candidates.first().uniqueKey
-                } else {
-                    null
+            val candidates = current.values.distinctBy { it.uniqueKey }
+
+            // Comparator prioritizing:
+            // 1. Active online devices over offline/stale
+            // 2. Hardware-specific entries over generic HOST-001
+            // 3. Most recently updated
+            val candidateComparator = compareByDescending<Device> { it.heartbeatStatus == "online" }
+                .thenByDescending { it.uniqueKey != "HOST-001" && it.deviceId != "HOST-001" }
+                .thenByDescending { it.lastHeartbeat }
+
+            // Check if there is an active online device matching callsign, hardwareId, or model
+            val onlineHardwareMatch = when {
+                !callsign.isNullOrBlank() -> candidates.find {
+                    it.heartbeatStatus == "online" && (
+                        it.resolvedCallsign.equals(callsign, ignoreCase = true) ||
+                        it.callsign.equals(callsign, ignoreCase = true) ||
+                        (it.hardwareId.isNotBlank() && callsign.contains(it.hardwareId, ignoreCase = true))
+                    )
                 }
+                !hardwareId.isNullOrBlank() -> candidates.find {
+                    it.heartbeatStatus == "online" && (
+                        it.hardwareId.equals(hardwareId, ignoreCase = true) ||
+                        it.deviceId.contains(hardwareId, ignoreCase = true) ||
+                        it.resolvedCallsign.contains(hardwareId, ignoreCase = true) ||
+                        it.uniqueKey.contains(hardwareId, ignoreCase = true)
+                    )
+                }
+                else -> null
             }
+
+            val onlineModelMatch = if (!model.isNullOrBlank()) {
+                candidates.filter { it.heartbeatStatus == "online" && it.model.equals(model, ignoreCase = true) }
+                    .sortedWith(candidateComparator)
+                    .firstOrNull()
+            } else null
+
+            val targetDevice = onlineHardwareMatch
+                ?: onlineModelMatch
+                ?: when {
+                    // Priority 1: Exact hardware callsign match (even if offline)
+                    !callsign.isNullOrBlank() -> {
+                        candidates.filter {
+                            it.resolvedCallsign.equals(callsign, ignoreCase = true) ||
+                                it.callsign.equals(callsign, ignoreCase = true) ||
+                                (it.hardwareId.isNotBlank() && callsign.contains(it.hardwareId, ignoreCase = true))
+                        }.sortedWith(candidateComparator).firstOrNull()
+                    }
+                    // Priority 2: Exact hardwareId match
+                    !hardwareId.isNullOrBlank() -> {
+                        candidates.filter {
+                            it.hardwareId.equals(hardwareId, ignoreCase = true) ||
+                                it.deviceId.contains(hardwareId, ignoreCase = true) ||
+                                it.resolvedCallsign.contains(hardwareId, ignoreCase = true) ||
+                                it.uniqueKey.contains(hardwareId, ignoreCase = true)
+                        }.sortedWith(candidateComparator).firstOrNull()
+                    }
+                    // Priority 3: Exact uniqueKey match
+                    !uniqueKey.isNullOrBlank() && candidates.any { it.uniqueKey == uniqueKey } -> {
+                        candidates.filter { it.uniqueKey == uniqueKey }
+                            .sortedWith(candidateComparator).firstOrNull()
+                    }
+                    // Priority 4: Specific deviceId (hardware suffixed)
+                    deviceId.isNotBlank() && deviceId != "HOST-001" -> {
+                        candidates.filter { it.deviceId == deviceId }
+                            .sortedWith(candidateComparator).firstOrNull()
+                    }
+                    // Priority 5: Model match
+                    !model.isNullOrBlank() -> {
+                        candidates.filter { it.model.equals(model, ignoreCase = true) }
+                            .sortedWith(candidateComparator).firstOrNull()
+                    }
+                    else -> {
+                        candidates.filter { it.deviceId == deviceId }
+                            .sortedWith(candidateComparator).firstOrNull()
+                    }
+                }
+
+            val targetKey = targetDevice?.uniqueKey
+                ?: if (uniqueKey != null && current.containsKey(uniqueKey)) uniqueKey
+                else if (model != null) {
+                    val modelMatch = candidates.filter { it.model.equals(model, ignoreCase = true) }
+                        .sortedWith(candidateComparator).firstOrNull()
+                    modelMatch?.uniqueKey ?: "${deviceId}_$model"
+                } else if (uniqueKey != null) {
+                    uniqueKey
+                } else {
+                    val fallback = candidates.filter { it.deviceId == deviceId }
+                        .sortedWith(candidateComparator).firstOrNull()
+                    fallback?.uniqueKey
+                }
 
             if (targetKey == null) {
                 return@update current
@@ -1212,9 +1284,7 @@ class DeviceRepositoryImpl(
             }.format(java.util.Date())
 
             val existingCallsign = existing?.callsign?.ifBlank { null }
-            val callsign = existingCallsign ?: getOrCreateCallsign(targetKey, model ?: "")
-
-            val resolvedCallsign = callsign ?: existing?.callsign?.ifBlank { null } ?: getOrCreateCallsign(targetKey, model ?: "")
+            val resolvedCallsign = existingCallsign ?: getOrCreateCallsign(targetKey, model ?: "")
             val patched = (existing ?: Device(
                 deviceId = deviceId,
                 connectionId = "",
@@ -1224,7 +1294,7 @@ class DeviceRepositoryImpl(
                 heartbeatStatus = "online",
                 connectedAt = "",
                 lastHeartbeat = currentUtc,
-                deviceName = if (callsign != null) "$model ($callsign)" else (model ?: deviceId),
+                deviceName = if (resolvedCallsign.isNotBlank()) "$model ($resolvedCallsign)" else (model ?: deviceId),
                 appVersion = "",
                 model = model ?: "",
                 latestLocation = updatedLocation,

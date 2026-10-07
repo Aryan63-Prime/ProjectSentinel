@@ -26,13 +26,15 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-    private val deviceRepository: DeviceRepository
+    private val deviceRepository: DeviceRepository,
+    private val connectionSupervisor: com.sentinel.admin.domain.supervisor.ConnectionSupervisor? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
     init {
+        connectionSupervisor?.ensureConnected()
         loadDevices()
         observeLiveUpdates()
         observeEmergencyAlerts()
@@ -111,6 +113,7 @@ class DashboardViewModel @Inject constructor(
      * Pull-to-refresh action.
      */
     fun refresh() {
+        connectionSupervisor?.ensureConnected()
         _uiState.update { it.copy(isRefreshing = true, errorMessage = null) }
         viewModelScope.launch {
             deviceRepository.getDevices()

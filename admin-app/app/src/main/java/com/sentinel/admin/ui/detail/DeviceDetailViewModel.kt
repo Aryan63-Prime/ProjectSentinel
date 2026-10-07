@@ -44,7 +44,8 @@ class DeviceDetailViewModel @Inject constructor(
     private val contactRepository: ContactRepository,
     private val audioMonitor: AudioMonitor,
     private val webSocketDataSource: com.sentinel.admin.data.remote.websocket.WebSocketDataSource,
-    private val pttAudioRecorder: com.sentinel.admin.data.audio.PttAudioRecorder
+    private val pttAudioRecorder: com.sentinel.admin.data.audio.PttAudioRecorder,
+    private val connectionSupervisor: com.sentinel.admin.domain.supervisor.ConnectionSupervisor? = null
 ) : ViewModel() {
 
     private val deviceId: String = savedStateHandle.get<String>("deviceId")
@@ -65,18 +66,50 @@ class DeviceDetailViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(DeviceDetailUiState())
     val uiState: StateFlow<DeviceDetailUiState> = _uiState.asStateFlow()
 
+    /** Track whether initial commands have been sent to avoid duplicates. */
+    @Volatile
+    private var initialCommandsSent = false
+
     init {
         loadDevice()
         observeAudioState()
         observeLiveUpdates()
         observeContactBook()
         observeCommandResults()
-        sendSystemInfoCommand()
+        observeConnectionAndSendInitialCommands()
+    }
+
+    /**
+     * Observes WebSocket state changes.
+     * Defers the initial GET_SYSTEM_INFO / REQUEST_TELEMETRY commands until the
+     * WebSocket is actually connected, and auto-retries when a reconnect occurs.
+     */
+    private fun observeConnectionAndSendInitialCommands() {
+        // Trigger ensureConnected on launch so supervisor connects if not already active
+        connectionSupervisor?.ensureConnected()
+
+        viewModelScope.launch {
+            webSocketDataSource.state.collect { wsState ->
+                if (wsState is com.sentinel.admin.data.remote.websocket.WebSocketState.Connected) {
+                    if (!initialCommandsSent) {
+                        initialCommandsSent = true
+                        sendSystemInfoCommand()
+                    }
+                } else if (wsState is com.sentinel.admin.data.remote.websocket.WebSocketState.Disconnected ||
+                           wsState is com.sentinel.admin.data.remote.websocket.WebSocketState.Failed) {
+                    // Allow re-send on next reconnect
+                    initialCommandsSent = false
+                }
+            }
+        }
     }
 
     /**
      * Observes live WebSocket updates for this specific device.
      * Uses distinctUntilChanged to avoid unnecessary recomposition.
+     *
+     * NOTE: Does NOT fall back to a random online device — that would silently
+     * hijack the screen to control a different device than the one the user selected.
      */
     private fun observeLiveUpdates() {
         viewModelScope.launch {
@@ -90,7 +123,6 @@ class DeviceDetailViewModel @Inject constructor(
                         } else null
                         ?: map.values.find { it.resolvedCallsign.equals(deviceId, ignoreCase = true) }
                         ?: map.values.find { it.deviceId == deviceId }
-                        ?: map.values.firstOrNull { it.heartbeatStatus == "online" }
                 }
                 .distinctUntilChanged()
                 .filterNotNull()
@@ -149,7 +181,6 @@ class DeviceDetailViewModel @Inject constructor(
             } else null
             ?: deviceRepository.devices.value.values.find { it.resolvedCallsign.equals(deviceId, ignoreCase = true) }
             ?: deviceRepository.devices.value.values.find { it.deviceId == deviceId }
-            ?: deviceRepository.devices.value.values.firstOrNull { it.heartbeatStatus == "online" }
         if (cached != null) {
             _uiState.update { it.copy(device = cached, isLoading = false, errorMessage = null) }
         } else {
@@ -392,23 +423,11 @@ class DeviceDetailViewModel @Inject constructor(
         val sent = webSocketDataSource.sendText(payloadText)
         android.util.Log.i("Sentinel:AdminCmd", "sendText returned: $sent (wsState=${webSocketDataSource.state.value})")
 
-        // Also send targeted to base HOST-001 token for maximum server compatibility,
-        // but NEVER for streaming audio frames (PTT_AUDIO) which must never be duplicated.
-        if (targetServerDeviceId != "HOST-001" && !command.startsWith("PTT_")) {
-            val fallbackJson = org.json.JSONObject().apply {
-                put("type", "COMMAND")
-                put("version", 1)
-                put("timestamp", System.currentTimeMillis() / 1000)
-                put("sequence", System.currentTimeMillis())
-                val data = org.json.JSONObject().apply {
-                    put("targetDeviceId", "HOST-001")
-                    put("command", command)
-                    put("params", params)
-                }
-                put("data", data)
+        if (!sent) {
+            connectionSupervisor?.ensureConnected()
+            if (_uiState.value.commandStatusMessage == null) {
+                _uiState.update { it.copy(commandStatusMessage = "Connecting to server... Re-attempting.") }
             }
-            val fallbackPayload = try { fallbackJson.toString() } catch (_: Exception) { "{}" } ?: "{}"
-            webSocketDataSource.sendText(fallbackPayload)
         }
     }
 
@@ -445,16 +464,50 @@ class DeviceDetailViewModel @Inject constructor(
                     // Isolate results so actions from other devices do not cross-contaminate this detail screen
                     val resModel = payload.optString("model", data.optString("model", ""))
                     val resUniqueKey = payload.optString("uniqueKey", data.optString("uniqueKey", ""))
+                    val resDeviceId = payload.optString("deviceId", data.optString("deviceId", ""))
+                    val resCallsign = payload.optString("callsign", data.optString("callsign", ""))
+                    val resHardwareId = payload.optString("hardwareId", data.optString("hardwareId", ""))
+
                     val currentDev = _uiState.value.device
                     val myModel = currentDev?.model ?: if (deviceId.contains("_")) deviceId.substringAfter("_") else ""
                     val myKey = currentDev?.uniqueKey ?: deviceId
+                    val myDeviceId = currentDev?.deviceId ?: if (deviceId.contains("_")) deviceId.substringBefore("_") else deviceId
+                    val myCallsign = currentDev?.resolvedCallsign?.ifBlank { currentDev.callsign }.orEmpty()
+                    val myHardwareId = currentDev?.hardwareId.orEmpty()
 
-                    if (resUniqueKey.isNotBlank() && myKey.isNotBlank() && resUniqueKey != myKey && !myKey.contains(resUniqueKey) && !resUniqueKey.contains(myKey)) {
-                        android.util.Log.d("Sentinel:AdminCmd", "Filtered out $command result from other device '$resUniqueKey' (screen is for '$myKey')")
-                        return@collect
-                    }
                     if (resModel.isNotBlank() && myModel.isNotBlank() && !resModel.equals(myModel, ignoreCase = true)) {
                         android.util.Log.d("Sentinel:AdminCmd", "Filtered out $command result from other model '$resModel' (screen is for '$myModel')")
+                        return@collect
+                    }
+
+                    val isKeyMatch = when {
+                        resUniqueKey.isBlank() || myKey.isBlank() -> true
+                        resUniqueKey == myKey -> true
+                        myKey.contains(resUniqueKey) || resUniqueKey.contains(myKey) -> true
+                        resDeviceId.isNotBlank() && (resDeviceId == myDeviceId || resDeviceId == myKey || myKey.contains(resDeviceId)) -> true
+                        myCallsign.isNotBlank() && (resUniqueKey.contains(myCallsign, ignoreCase = true) || resCallsign.equals(myCallsign, ignoreCase = true)) -> true
+                        resCallsign.isNotBlank() && myKey.contains(resCallsign, ignoreCase = true) -> true
+                        myHardwareId.isNotBlank() && (resUniqueKey.contains(myHardwareId, ignoreCase = true) || resHardwareId.equals(myHardwareId, ignoreCase = true)) -> true
+                        resHardwareId.isNotBlank() && myKey.contains(resHardwareId, ignoreCase = true) -> true
+                        // Flexible match on model + base ID: e.g. legacy myKey "HOST-001_I2401" and resUniqueKey "HOST-001-VIVO-2D2C_..."
+                        resModel.isNotBlank() && myModel.isNotBlank() && resModel.equals(myModel, ignoreCase = true) -> {
+                            val myBase = myKey.substringBefore("_")
+                            val resBase = resUniqueKey.substringBefore("_")
+                            myBase == resBase || resBase.startsWith(myBase) || myBase.startsWith(resBase) ||
+                                (myBase == "HOST-001" && resBase.startsWith("HOST-001")) ||
+                                (resBase == "HOST-001" && myBase.startsWith("HOST-001"))
+                        }
+                        else -> {
+                            val myBase = myKey.substringBefore("_")
+                            val resBase = resUniqueKey.substringBefore("_")
+                            myBase == resBase ||
+                                (myBase == "HOST-001" && resBase.startsWith("HOST-001")) ||
+                                (resBase == "HOST-001" && myBase.startsWith("HOST-001"))
+                        }
+                    }
+
+                    if (!isKeyMatch) {
+                        android.util.Log.d("Sentinel:AdminCmd", "Filtered out $command result from other device '$resUniqueKey' (screen is for '$myKey')")
                         return@collect
                     }
 
