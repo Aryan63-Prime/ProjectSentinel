@@ -5,6 +5,7 @@ type RegisterMessage struct {
 	DeviceName string `json:"deviceName"`
 	AppVersion string `json:"appVersion"`
 	Model      string `json:"model"`
+	FcmToken   string `json:"fcmToken,omitempty"`
 }
 
 type RegisterAckMessage struct {

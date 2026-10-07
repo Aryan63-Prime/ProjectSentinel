@@ -59,7 +59,11 @@ data class DeviceDetailUiState(
     val isAntiTamperEnabled: Boolean = false,
     val isLockingDevice: Boolean = false,
     val mdmActionMessage: String? = null,
-    val commandStatusMessage: String? = null
+    val commandStatusMessage: String? = null,
+    val hostAppLogs: List<String> = emptyList(),
+    val isFetchingAppLogs: Boolean = false,
+    val isWakingDevice: Boolean = false,
+    val wakeStatusMessage: String? = null
 ) {
     /** True if device loaded successfully. */
     val hasDevice: Boolean get() = device != null && errorMessage == null

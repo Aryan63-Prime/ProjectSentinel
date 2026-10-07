@@ -27,7 +27,9 @@ data class DashboardUiState(
     /** Whether a refresh is in progress. */
     val isRefreshing: Boolean = false,
     /** Error message, null if no error. */
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    /** Active emergency alert (e.g. fall detected), or null if none. */
+    val emergencyAlert: com.sentinel.admin.domain.model.EmergencyAlert? = null
 ) {
     /** True if no devices after loading completes. */
     val isEmpty: Boolean

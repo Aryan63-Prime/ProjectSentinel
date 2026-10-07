@@ -36,7 +36,8 @@ internal data class RegisterDataJson(
     val deviceId: String,
     val deviceName: String,
     val appVersion: String,
-    val model: String
+    val model: String,
+    val fcmToken: String? = null
 )
 
 @JsonClass(generateAdapter = true)

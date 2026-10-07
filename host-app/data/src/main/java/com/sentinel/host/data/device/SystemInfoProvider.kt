@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.net.wifi.WifiManager
 import android.os.BatteryManager
+import android.os.Build
 import android.os.Environment
 import android.os.StatFs
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -15,9 +16,12 @@ import javax.inject.Singleton
 
 @Singleton
 class SystemInfoProvider @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val hardwareInfoProvider: HardwareInfoProvider
 ) {
     fun getSystemInfo(): Map<String, Any> {
+        val hw = hardwareInfoProvider.getHardwareInfo()
+
         val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         val memoryInfo = ActivityManager.MemoryInfo()
         activityManager.getMemoryInfo(memoryInfo)
@@ -51,6 +55,70 @@ class SystemInfoProvider @Inject constructor(
             "Connected"
         }
 
+        val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+        val wifiInfo = wifiManager?.connectionInfo
+        val wifiFrequency = wifiInfo?.frequency ?: 0
+        val wifiBand = when {
+            wifiFrequency > 5925 -> "6 GHz (Wi-Fi 6E/7)"
+            wifiFrequency > 4900 -> "5 GHz"
+            wifiFrequency > 2400 -> "2.4 GHz"
+            else -> "Standard"
+        }
+        val wifiLinkSpeed = if ((wifiInfo?.linkSpeed ?: -1) > 0) "${wifiInfo?.linkSpeed} Mbps" else "N/A"
+        val ipInt = wifiInfo?.ipAddress ?: 0
+        val localIp = if (ipInt != 0) {
+            String.format(
+                java.util.Locale.US,
+                "%d.%d.%d.%d",
+                ipInt and 0xff,
+                (ipInt shr 8) and 0xff,
+                (ipInt shr 16) and 0xff,
+                (ipInt shr 24) and 0xff
+            )
+        } else "N/A"
+
+        val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as? android.telephony.TelephonyManager
+        val carrier = telephonyManager?.networkOperatorName?.ifBlank { null }
+            ?: telephonyManager?.simOperatorName?.ifBlank { null }
+            ?: "Cellular"
+
+        val voltageMv = batteryStatus?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1) ?: -1
+        val batteryHealth = when (batteryStatus?.getIntExtra(BatteryManager.EXTRA_HEALTH, -1)) {
+            BatteryManager.BATTERY_HEALTH_GOOD -> "Good"
+            BatteryManager.BATTERY_HEALTH_OVERHEAT -> "Overheat"
+            BatteryManager.BATTERY_HEALTH_DEAD -> "Dead"
+            BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "Over Voltage"
+            else -> "Normal"
+        }
+        val batteryTech = batteryStatus?.getStringExtra(BatteryManager.EXTRA_TECHNOLOGY) ?: "Li-poly"
+
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+        val thermalStatus = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            when (powerManager?.currentThermalStatus) {
+                android.os.PowerManager.THERMAL_STATUS_NONE -> "Nominal"
+                android.os.PowerManager.THERMAL_STATUS_LIGHT -> "Light Warm"
+                android.os.PowerManager.THERMAL_STATUS_MODERATE -> "Moderate Throttling"
+                android.os.PowerManager.THERMAL_STATUS_SEVERE -> "Severe Throttling"
+                android.os.PowerManager.THERMAL_STATUS_CRITICAL -> "Critical Thermal"
+                else -> "Nominal"
+            }
+        } else "Nominal"
+
+        val cpuCores = Runtime.getRuntime().availableProcessors()
+        val kernelVersion = try {
+            val ver = File("/proc/version").readText().trim()
+            ver.split(" ").getOrNull(2) ?: System.getProperty("os.version") ?: "Linux"
+        } catch (_: Exception) {
+            System.getProperty("os.version") ?: "Linux"
+        }
+
+        val uptimeMillis = android.os.SystemClock.elapsedRealtime()
+        val uptimeHours = uptimeMillis / (1000 * 60 * 60)
+        val uptimeMins = (uptimeMillis / (1000 * 60)) % 60
+        val uptimeStr = "${uptimeHours}h ${uptimeMins}m"
+
+        val soc = hw.socModel.ifBlank { hw.socManufacturer }.ifBlank { hw.hardware }
+
         return mapOf(
             "ramAvailableMb" to (memoryInfo.availMem / (1024 * 1024)),
             "ramTotalMb" to (memoryInfo.totalMem / (1024 * 1024)),
@@ -58,9 +126,37 @@ class SystemInfoProvider @Inject constructor(
             "storageTotalGb" to String.format("%.1f GB", totalStorageGb),
             "batteryPercent" to batteryPct,
             "batteryTempC" to batteryTempC,
+            "batteryVoltageMv" to voltageMv,
+            "batteryHealth" to batteryHealth,
+            "batteryTech" to batteryTech,
             "isCharging" to isCharging,
             "wifiSsid" to ssid,
-            "cpuUsage" to "${getSampleCpuUsage()}%"
+            "wifiBand" to wifiBand,
+            "wifiLinkSpeed" to wifiLinkSpeed,
+            "localIp" to localIp,
+            "carrier" to carrier,
+            "thermalStatus" to thermalStatus,
+            "cpuCores" to cpuCores,
+            "kernelVersion" to kernelVersion,
+            "systemUptime" to uptimeStr,
+            "cpuUsage" to "${getSampleCpuUsage()}%",
+            "hardwareId" to hw.hardwareId,
+            "hardwareSerial" to hw.hardwareSerial,
+            "hardwareBrand" to hw.brand,
+            "hardwareManufacturer" to hw.manufacturer,
+            "hardwareModel" to hw.model,
+            "hardwareDevice" to hw.device,
+            "hardwareProduct" to hw.product,
+            "hardwareBoard" to hw.board,
+            "hardwareHardware" to hw.hardware,
+            "hardwareSoc" to soc,
+            "supportedAbis" to hw.supportedAbis,
+            "osRelease" to hw.androidVersion,
+            "osSdk" to hw.sdkInt,
+            "securityPatch" to hw.securityPatch,
+            "screenResolution" to hw.screenResolution,
+            "screenDpi" to hw.screenDpi,
+            "hardwareCallsign" to hw.hardwareCallsign
         )
     }
 

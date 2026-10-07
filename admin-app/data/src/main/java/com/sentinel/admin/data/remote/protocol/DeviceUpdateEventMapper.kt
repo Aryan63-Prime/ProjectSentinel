@@ -22,6 +22,7 @@ class DeviceUpdateEventMapper {
         private const val EVENT_BATTERY = "battery"
         private const val EVENT_NETWORK = "network"
         private const val EVENT_METADATA = "metadata"
+        private const val EVENT_EMERGENCY_SOS = "emergency_sos"
     }
 
     /**
@@ -44,12 +45,14 @@ class DeviceUpdateEventMapper {
             )
 
             EVENT_DISCONNECTED -> DeviceUpdateEvent.DeviceDisconnected(
-                deviceId = data.deviceId
+                deviceId = data.deviceId,
+                model = data.model
             )
 
             EVENT_HEARTBEAT -> DeviceUpdateEvent.HeartbeatReceived(
                 deviceId = data.deviceId,
-                timestamp = data.timestamp
+                timestamp = data.timestamp,
+                model = data.model
             )
 
             EVENT_LOCATION -> {
@@ -89,6 +92,18 @@ class DeviceUpdateEventMapper {
                 deviceName = data.deviceName,
                 appVersion = data.appVersion,
                 model = data.model
+            )
+
+            EVENT_EMERGENCY_SOS -> DeviceUpdateEvent.EmergencySos(
+                deviceId = data.deviceId,
+                triggerReason = data.triggerReason ?: "FALL_DETECTED",
+                impactGForce = data.impactGForce ?: 0.0,
+                latitude = data.latitude,
+                longitude = data.longitude,
+                accuracy = data.accuracy,
+                battery = data.battery,
+                model = data.model,
+                timestamp = data.timestamp
             )
 
             else -> {

@@ -6,6 +6,7 @@
 *.pem
 *.key
 *.crt
+serviceAccountKey.json
 
 # Binary
 /sentinel

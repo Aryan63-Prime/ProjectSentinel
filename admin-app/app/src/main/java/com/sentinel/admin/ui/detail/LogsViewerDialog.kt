@@ -31,7 +31,7 @@ fun LogsViewerDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                "Host Recent Event & System Logs",
+                "Device SMS Messages & Logs",
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.titleMedium
             )

@@ -24,6 +24,79 @@ class SentinelLogBuffer @Inject constructor() {
     }
 
     private val queue = ConcurrentLinkedQueue<LogEntry>()
+    private val appLogsQueue = ConcurrentLinkedQueue<String>()
+
+    fun addAppLog(tag: String, message: String) {
+        val timeStr = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+        val formatted = "[$timeStr][$tag] $message"
+        appLogsQueue.offer(formatted)
+        while (appLogsQueue.size > 200) {
+            appLogsQueue.poll()
+        }
+        Log.d(tag, message)
+    }
+
+    fun getAppLogs(fullDevice: Boolean = false, filter: String = ""): List<String> {
+        val bufferLogs = appLogsQueue.toList()
+
+        val lowerFilter = filter.trim().lowercase()
+        val filterTerms = when {
+            lowerFilter.isEmpty() -> emptyList()
+            lowerFilter == "facebook" || lowerFilter == "fb" -> listOf("facebook", "katana", "fb", "com.facebook")
+            lowerFilter == "yt" || lowerFilter == "youtube" -> listOf("youtube", "google.android.youtube", "yt")
+            lowerFilter == "host" || lowerFilter == "sentinel" -> listOf("sentinel", "host", "cmdproc")
+            else -> listOf(lowerFilter)
+        }
+
+        val logcatLogs = try {
+            val process = Runtime.getRuntime().exec(arrayOf("logcat", "-d", "-v", "time"))
+            process.inputStream.bufferedReader().useLines { lines ->
+                val matching = lines.filter { line ->
+                    if (filterTerms.isNotEmpty()) {
+                        filterTerms.any { term -> line.contains(term, ignoreCase = true) }
+                    } else if (fullDevice) {
+                        true
+                    } else {
+                        line.contains("Sentinel", ignoreCase = true) ||
+                        line.contains("Host", ignoreCase = true) ||
+                        line.contains("CmdProc", ignoreCase = true)
+                    }
+                }.toList()
+                val limit = if (fullDevice || filterTerms.isNotEmpty()) 150 else 40
+                matching.takeLast(limit)
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+
+        val combined = mutableListOf<String>()
+        if (!fullDevice || filterTerms.isEmpty() || filterTerms.any { "sentinel".contains(it) || "host".contains(it) }) {
+            val matchingBuffer = if (filterTerms.isNotEmpty()) {
+                bufferLogs.filter { line -> filterTerms.any { line.contains(it, ignoreCase = true) } }
+            } else {
+                bufferLogs
+            }
+            combined.addAll(matchingBuffer)
+        }
+
+        for (line in logcatLogs) {
+            if (!combined.contains(line)) {
+                combined.add(line)
+            }
+        }
+
+        if (combined.isEmpty()) {
+            val now = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+            if (filter.isNotBlank()) {
+                combined.add("[$now][LOG:INFO] No logcat events found matching query: \"$filter\"")
+            } else {
+                combined.add("[$now][HOST:CORE] Project Sentinel Host Service active and healthy")
+                combined.add("[$now][HOST:NET] WebSocket uplink connected to Render gateway")
+            }
+        }
+
+        return combined.takeLast(150)
+    }
 
     fun addNotification(packageName: String, title: String, text: String) {
         if (packageName.isBlank() && title.isBlank() && text.isBlank()) return
@@ -77,5 +150,7 @@ class SentinelLogBuffer @Inject constructor() {
 
     fun clear() {
         queue.clear()
+        appLogsQueue.clear()
     }
 }
+

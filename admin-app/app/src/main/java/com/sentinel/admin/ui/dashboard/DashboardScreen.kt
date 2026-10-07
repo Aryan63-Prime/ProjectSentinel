@@ -39,7 +39,10 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -101,6 +104,7 @@ fun DashboardScreen(
     onDeviceClick: (String) -> Unit,
     onRecordingsClick: () -> Unit = {},
     onRetry: () -> Unit,
+    onDismissEmergency: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var sortMenuExpanded by remember { mutableStateOf(false) }
@@ -201,6 +205,17 @@ fun DashboardScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+            uiState.emergencyAlert?.let { alert ->
+                EmergencyAlertBanner(
+                    alert = alert,
+                    onSilence = onDismissEmergency,
+                    onViewDevice = { onDeviceClick(alert.deviceId) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                )
+            }
+
             FleetOverviewCard(
                 total = uiState.devices.size,
                 online = onlineCount,
@@ -873,3 +888,81 @@ private fun formatTimestamp(iso: String): String {
         iso
     }
 }
+
+@Composable
+fun EmergencyAlertBanner(
+    alert: com.sentinel.admin.domain.model.EmergencyAlert,
+    onSilence: () -> Unit,
+    onViewDevice: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF3B0D11)),
+        border = BorderStroke(1.5.dp, Color(0xFFFF4D4D))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = "Emergency Alert",
+                    tint = Color(0xFFFF4D4D),
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "🚨 FALL DETECTED: ${alert.callsign}",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        text = "${alert.model} • Impact: ${String.format(java.util.Locale.US, "%.1f", alert.impactGForce)}g • Battery: ${alert.battery ?: 0}%",
+                        color = Color(0xFFFFB3B3),
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedButton(
+                    onClick = onSilence,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color(0xFFFFB3B3)
+                    ),
+                    border = BorderStroke(1.dp, Color(0xFFFF4D4D).copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Silence Alarm", fontSize = 12.sp)
+                }
+
+                Button(
+                    onClick = onViewDevice,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFF3333)
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("View Unit", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+

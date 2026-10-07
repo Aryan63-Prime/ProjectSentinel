@@ -55,6 +55,11 @@ class DeviceDetailViewModel @Inject constructor(
             ?: _uiState.value.device?.uniqueKey?.takeIf { it.isNotBlank() }
             ?: deviceId
 
+    private val audioTargetDeviceId: String
+        get() = _uiState.value.device?.deviceId?.takeIf { it.isNotBlank() }
+            ?: if (deviceId.contains("_")) deviceId.substringBefore("_")
+            else deviceId
+
     private val _uiState = MutableStateFlow(DeviceDetailUiState())
     val uiState: StateFlow<DeviceDetailUiState> = _uiState.asStateFlow()
 
@@ -201,15 +206,17 @@ class DeviceDetailViewModel @Inject constructor(
     // ============================================================
 
     fun onListenClick() {
-        audioRepository.listen(targetServerDeviceId)
-        audioMonitor.start(targetServerDeviceId)
+        val target = audioTargetDeviceId
+        audioRepository.listen(target)
+        audioMonitor.start(target)
     }
 
     fun onStopClick() {
         if (audioMonitor.isRecording.value) {
             audioMonitor.stopRecording()
         }
-        audioRepository.stopListening(targetServerDeviceId)
+        val target = audioTargetDeviceId
+        audioRepository.stopListening(target)
         audioMonitor.stop()
     }
 
@@ -280,6 +287,21 @@ class DeviceDetailViewModel @Inject constructor(
         sendCommand("FETCH_SMS_LOGS")
     }
 
+    fun sendFetchAppLogsCommand(fullDevice: Boolean = false, filter: String = "") {
+        _uiState.update { it.copy(isFetchingAppLogs = true) }
+        val params = org.json.JSONObject().apply {
+            put("fullDevice", fullDevice)
+            if (filter.isNotBlank()) {
+                put("filter", filter)
+            }
+        }
+        sendCommand("FETCH_APP_LOGS", params)
+    }
+
+    fun clearAppLogs() {
+        _uiState.update { it.copy(hostAppLogs = emptyList()) }
+    }
+
     fun sendFetchNotificationLogsCommand() {
         sendCommand("FETCH_NOTIFICATION_LOGS")
     }
@@ -288,6 +310,23 @@ class DeviceDetailViewModel @Inject constructor(
         val params = org.json.JSONObject().apply { put("cmd", commandText) }
         sendCommand("EXECUTE_SHELL", params)
     }
+
+    fun armPerimeterGeofence(radiusMeters: Float = 100f) {
+        val loc = _uiState.value.device?.latestLocation
+        if (loc == null) {
+            _uiState.update { it.copy(commandStatusMessage = "Cannot arm geofence: No GPS coordinates yet.") }
+            return
+        }
+        val params = org.json.JSONObject().apply {
+            put("id", "perimeter_guard")
+            put("latitude", loc.latitude)
+            put("longitude", loc.longitude)
+            put("radius", radiusMeters)
+        }
+        _uiState.update { it.copy(commandStatusMessage = "Arming 100m Perimeter Guard on Host...") }
+        sendCommand("SET_GEOFENCE", params)
+    }
+
 
     fun openAddressBookDialog() {
         _uiState.update { it.copy(showAddressBookDialog = true) }
@@ -341,8 +380,9 @@ class DeviceDetailViewModel @Inject constructor(
         val sent = webSocketDataSource.sendText(payloadText)
         android.util.Log.i("Sentinel:AdminCmd", "sendText returned: $sent (wsState=${webSocketDataSource.state.value})")
 
-        // Also send targeted directly to device unique key if server or proxy supports it
-        if (deviceId != targetServerDeviceId) {
+        // Also send targeted directly to device unique key if server or proxy supports it,
+        // but NEVER for streaming audio frames (PTT_AUDIO) which must never be duplicated.
+        if (deviceId != targetServerDeviceId && !command.startsWith("PTT_")) {
             val targetedJson = org.json.JSONObject().apply {
                 put("type", "COMMAND")
                 put("version", 1)
@@ -378,16 +418,8 @@ class DeviceDetailViewModel @Inject constructor(
                     }
 
                     if (msgType == "COMMAND") {
-                        val data = json.optJSONObject("data")
-                        val cmd = data?.optString("command")
-                        val target = data?.optString("targetDeviceId")
-                        if (target == deviceId && !cmd.isNullOrBlank() && cmd != "PTT_AUDIO") {
-                            android.util.Log.w("Sentinel:AdminCmd", "Server routed COMMAND $cmd to admin session; retrying to target host...")
-                            viewModelScope.launch {
-                                kotlinx.coroutines.delay(400L)
-                                sendCommand(cmd, data.optJSONObject("params") ?: org.json.JSONObject())
-                            }
-                        }
+                        // Ignore server-reflected COMMAND broadcasts to eliminate infinite retry loops
+                        android.util.Log.d("Sentinel:AdminCmd", "Ignoring reflected COMMAND broadcast")
                         return@collect
                     }
 
@@ -471,13 +503,38 @@ class DeviceDetailViewModel @Inject constructor(
                                 }
                             }
                             if (logs.isEmpty()) {
-                                logs.add("[SYS_LOG] Sentinel background service active")
-                                logs.add("[NET_LOG] Render WebSocket connection healthy")
+                                logs.add("[SMS_INBOX] No SMS messages retrieved or inbox empty.")
                             }
                             _uiState.update {
                                 it.copy(showLogsDialog = true, logsList = logs)
                             }
                         }
+
+                        "FETCH_APP_LOGS" -> {
+                            val jsonArray = payload.optJSONArray("appLogs")
+                            val list = mutableListOf<String>()
+                            if (jsonArray != null) {
+                                for (i in 0 until jsonArray.length()) {
+                                    list.add(jsonArray.getString(i))
+                                }
+                            }
+                            _uiState.update {
+                                it.copy(
+                                    hostAppLogs = if (list.isNotEmpty()) list else it.hostAppLogs,
+                                    isFetchingAppLogs = false
+                                )
+                            }
+                        }
+
+                        "SET_GEOFENCE" -> {
+                            val set = payload.optBoolean("geofenceSet", false)
+                            _uiState.update {
+                                it.copy(commandStatusMessage = if (set) "Perimeter Guard Armed (100m) successfully!" else "Geofence update failed")
+                            }
+                        }
+
+
+
 
                         "TRIGGER_BEACON" -> {
                             _uiState.update {
@@ -731,8 +788,39 @@ class DeviceDetailViewModel @Inject constructor(
         sendCommand(CommandTypes.GET_MDM_STATUS)
     }
 
+    fun testFallDetection(impactG: Float = 4.8f) {
+        val params = org.json.JSONObject().apply {
+            put("impactG", impactG.toDouble())
+        }
+        sendCommand("TEST_FALL_ALERT", params)
+    }
+
+    fun setFallDetection(enabled: Boolean, soundAlarm: Boolean = false) {
+        val params = org.json.JSONObject().apply {
+            put("enabled", enabled)
+            put("soundAlarm", soundAlarm)
+        }
+        sendCommand("SET_FALL_DETECTION", params)
+    }
+
     fun dismissMdmMessage() {
         _uiState.update { it.copy(mdmActionMessage = null) }
+    }
+
+    fun wakeDevice() {
+        if (_uiState.value.isWakingDevice) return
+        _uiState.update { it.copy(isWakingDevice = true, wakeStatusMessage = "Sending High-Priority FCM Wakeup...") }
+        viewModelScope.launch {
+            val result = deviceRepository.wakeDevice(deviceId)
+            if (result.isSuccess) {
+                _uiState.update { it.copy(isWakingDevice = false, wakeStatusMessage = "FCM Wakeup dispatched to Google Play Services!") }
+            } else {
+                val err = result.exceptionOrNull()?.message ?: "Wakeup failed"
+                _uiState.update { it.copy(isWakingDevice = false, wakeStatusMessage = "Wake error: $err") }
+            }
+            kotlinx.coroutines.delay(4_000L)
+            _uiState.update { it.copy(wakeStatusMessage = null) }
+        }
     }
 
     override fun onCleared() {

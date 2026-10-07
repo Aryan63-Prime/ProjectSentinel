@@ -20,7 +20,9 @@ data class DeviceUpdateDataJson(
     val timestamp: String? = null,
     val deviceName: String? = null,
     val appVersion: String? = null,
-    val model: String? = null
+    val model: String? = null,
+    val triggerReason: String? = null,
+    val impactGForce: Double? = null
 )
 
 /**

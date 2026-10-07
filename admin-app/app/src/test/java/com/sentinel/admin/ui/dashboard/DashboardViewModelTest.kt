@@ -52,6 +52,10 @@ class DashboardViewModelTest {
         override val devices: StateFlow<Map<String, Device>> = MutableStateFlow(emptyMap())
         override val deviceUpdates: SharedFlow<DeviceUpdateEvent> = MutableSharedFlow()
         override val eventStatistics: StateFlow<EventStatistics> = MutableStateFlow(EventStatistics())
+        override val emergencyAlert: StateFlow<com.sentinel.admin.domain.model.EmergencyAlert?> = MutableStateFlow(null)
+
+        override fun dismissEmergencyAlert() {}
+        override fun triggerTestEmergencyAlert(alert: com.sentinel.admin.domain.model.EmergencyAlert) {}
 
         override suspend fun getDevices(): Result<List<Device>> {
             callCount++

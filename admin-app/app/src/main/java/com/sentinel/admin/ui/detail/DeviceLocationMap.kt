@@ -356,24 +356,33 @@ fun DeviceLocationMap(
                 }
             }
 
-            // Bottom Coordinates Bar
+            // Bottom Coordinates Bar with Accuracy & Timestamp
+            val recordedTimeStr = if (location.recordedAt.isNotBlank()) {
+                val iso = location.recordedAt
+                if (iso.contains("T")) {
+                    iso.substringAfter("T").take(8)
+                } else {
+                    iso.takeLast(8)
+                }
+            } else ""
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0xFF0B1120))
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(horizontal = 14.dp, vertical = 9.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "${String.format("%.5f", location.latitude)}, ${String.format("%.5f", location.longitude)}",
+                    text = "${String.format("%.5f", location.latitude)}, ${String.format("%.5f", location.longitude)} (±${location.accuracy.toInt()}m)",
                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     color = Color(0xFF9AA7B6),
                     fontWeight = FontWeight.Medium
                 )
                 Text(
-                    text = cleanNetwork,
+                    text = if (recordedTimeStr.isNotBlank()) "$cleanNetwork · $recordedTimeStr" else cleanNetwork,
                     fontSize = 11.sp,
                     color = Color(0xFF8FB2D8),
                     fontWeight = FontWeight.SemiBold

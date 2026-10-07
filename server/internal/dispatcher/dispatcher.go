@@ -49,6 +49,11 @@ type Dispatcher struct {
 	file        *file.Handler
 	command     *command.Handler
 	broadcaster Broadcaster
+	fcm         FcmRegistrar
+}
+
+type FcmRegistrar interface {
+	RegisterToken(deviceID, fcmToken string)
 }
 
 func New(
@@ -84,6 +89,11 @@ func (d *Dispatcher) SetCommandHandler(h *command.Handler) {
 	d.command = h
 }
 
+// SetFcmRegistrar configures the FCM token registrar.
+func (d *Dispatcher) SetFcmRegistrar(r FcmRegistrar) {
+	d.fcm = r
+}
+
 func (d *Dispatcher) Dispatch(ctx context.Context, session Session, data []byte) Result {
 
 	message, err := protocol.DecodeMessage(data)
@@ -110,6 +120,12 @@ func (d *Dispatcher) Dispatch(ctx context.Context, session Session, data []byte)
 		if err == nil {
 			var reg protocol.RegisterMessage
 			_ = message.DecodeData(&reg)
+			if d.fcm != nil && reg.FcmToken != "" {
+				d.fcm.RegisterToken(reg.DeviceID, reg.FcmToken)
+				if reg.Model != "" {
+					d.fcm.RegisterToken(reg.DeviceID+"_"+reg.Model, reg.FcmToken)
+				}
+			}
 			d.broadcastDeviceUpdate(protocol.DeviceUpdateMessage{
 				Event:      protocol.EventConnected,
 				DeviceID:   reg.DeviceID,
@@ -124,20 +140,26 @@ func (d *Dispatcher) Dispatch(ctx context.Context, session Session, data []byte)
 		response, err := d.heartbeat.Handle(ctx, session, message)
 		result := d.dispatchWithErrors(response, err, message.Sequence)
 		if err == nil {
-			ts := time.Now().UTC().Format(time.RFC3339)
-			var modelPtr *string
-			if ms, ok := session.(interface{ Model() string }); ok {
-				m := ms.Model()
-				if m != "" {
-					modelPtr = &m
-				}
+			isAdmin := false
+			if as, ok := session.(interface{ IsAdmin() bool }); ok {
+				isAdmin = as.IsAdmin()
 			}
-			d.broadcastDeviceUpdate(protocol.DeviceUpdateMessage{
-				Event:     protocol.EventHeartbeat,
-				DeviceID:  session.AuthenticatedDeviceID(),
-				Timestamp: &ts,
-				Model:     modelPtr,
-			})
+			if !isAdmin {
+				ts := time.Now().UTC().Format(time.RFC3339)
+				var modelPtr *string
+				if ms, ok := session.(interface{ Model() string }); ok {
+					m := ms.Model()
+					if m != "" {
+						modelPtr = &m
+					}
+				}
+				d.broadcastDeviceUpdate(protocol.DeviceUpdateMessage{
+					Event:     protocol.EventHeartbeat,
+					DeviceID:  session.AuthenticatedDeviceID(),
+					Timestamp: &ts,
+					Model:     modelPtr,
+				})
+			}
 		}
 		return result
 
@@ -212,6 +234,39 @@ func (d *Dispatcher) Dispatch(ctx context.Context, session Session, data []byte)
 	case protocol.TypeStop:
 		response, err := d.dispatchStop(ctx, session, message)
 		return d.dispatchWithErrors(response, err, message.Sequence)
+
+	case protocol.TypeEmergencySOS:
+		var sos protocol.EmergencySOSMessage
+		_ = message.DecodeData(&sos)
+		var modelPtr *string
+		if ms, ok := session.(interface{ Model() string }); ok {
+			m := ms.Model()
+			if m != "" {
+				modelPtr = &m
+			}
+		}
+		var accPtr *float32
+		if sos.Accuracy > 0 {
+			acc := float32(sos.Accuracy)
+			accPtr = &acc
+		}
+		ts := time.Now().UTC().Format(time.RFC3339)
+		d.broadcastDeviceUpdate(protocol.DeviceUpdateMessage{
+			Event:         protocol.EventEmergencySOS,
+			DeviceID:      session.AuthenticatedDeviceID(),
+			Latitude:      &sos.Latitude,
+			Longitude:     &sos.Longitude,
+			Accuracy:      accPtr,
+			Battery:       &sos.Battery,
+			Timestamp:     &ts,
+			Model:         modelPtr,
+			TriggerReason: strPtr(sos.TriggerReason),
+			ImpactGForce:  &sos.ImpactGForce,
+		})
+		if d.broadcaster != nil {
+			d.broadcaster.BroadcastToAdmins(data)
+		}
+		return Result{Message: nil}
 
 	case protocol.TypePing:
 		response, err := protocol.NewMessage(protocol.TypePong, message.Sequence, protocol.PongMessage{})
@@ -347,14 +402,21 @@ func (d *Dispatcher) broadcastDeviceUpdate(update protocol.DeviceUpdateMessage) 
 
 // BroadcastDisconnect broadcasts a device disconnection event to admin sessions.
 // Called from the gateway readLoop cleanup when a host session disconnects.
-func (d *Dispatcher) BroadcastDisconnect(deviceID string) {
+func (d *Dispatcher) BroadcastDisconnect(deviceID string, model ...string) {
 	if deviceID == "" {
 		return
+	}
+
+	var modelPtr *string
+	if len(model) > 0 && model[0] != "" {
+		m := model[0]
+		modelPtr = &m
 	}
 
 	d.broadcastDeviceUpdate(protocol.DeviceUpdateMessage{
 		Event:    protocol.EventDisconnected,
 		DeviceID: deviceID,
+		Model:    modelPtr,
 	})
 }
 

@@ -28,4 +28,7 @@ const (
 	// Air Commands
 	TypeCommand       MessageType = "COMMAND"
 	TypeCommandResult MessageType = "COMMAND_RESULT"
+
+	// Emergency & SOS
+	TypeEmergencySOS MessageType = "EMERGENCY_SOS"
 )

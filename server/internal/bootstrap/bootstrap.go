@@ -12,6 +12,7 @@ import (
 	"github.com/xaiop/project-sentinel/server/internal/database"
 	"github.com/xaiop/project-sentinel/server/internal/device"
 	"github.com/xaiop/project-sentinel/server/internal/dispatcher"
+	"github.com/xaiop/project-sentinel/server/internal/fcm"
 	"github.com/xaiop/project-sentinel/server/internal/file"
 	"github.com/xaiop/project-sentinel/server/internal/gateway"
 	"github.com/xaiop/project-sentinel/server/internal/health"
@@ -20,6 +21,7 @@ import (
 	"github.com/xaiop/project-sentinel/server/internal/logger"
 	"github.com/xaiop/project-sentinel/server/internal/metrics"
 	"github.com/xaiop/project-sentinel/server/internal/repository"
+	"go.uber.org/zap"
 )
 
 func Build() (*app.Application, error) {
@@ -65,16 +67,27 @@ func Build() (*app.Application, error) {
 	commandHandler := command.NewHandler(gw, gw)
 	dispatch.SetCommandHandler(commandHandler)
 
+	fcmService, fcmErr := fcm.NewService("serviceAccountKey.json", log)
+	if fcmErr != nil {
+		log.Warn("FCM service initialization failed", zap.Error(fcmErr))
+	} else if fcmService != nil {
+		dispatch.SetFcmRegistrar(fcmService)
+		commandHandler.SetFcmWaker(fcmService)
+	}
+
 	dispatch.SetBroadcaster(gw)
 	audioService.SetForwarder(gw)
 	fileService.SetForwarder(gw)
 	gw.SetHealthService(health.NewService(componentCheckers(cfg, redisClient)...))
 	adminService := admin.NewService(adminSessionSource{gateway: gw}, locationRepository, heartbeatService)
+	if fcmService != nil {
+		adminService.SetFcmService(fcmService)
+	}
 	adminHandler := admin.NewHandler(adminService, authService)
 	metricsHandler := metrics.NewHandler(gw.MetricsCollector(), authService)
 	gw.HandleFunc("/metrics", metricsHandler.ServeHTTP)
 	gw.HandleFunc("/devices", adminHandler.ListDevices)
-	gw.HandleFunc("/devices/", adminHandler.GetDevice)
+	gw.HandleFunc("/devices/", adminHandler.RouteDevice)
 
 	application := &app.Application{
 		Config:  cfg,

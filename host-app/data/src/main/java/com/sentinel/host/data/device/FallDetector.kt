@@ -60,6 +60,15 @@ class FallDetector @Inject constructor(
         stop()
     }
 
+    /** Simulates a fall trigger for automated testing and verification. */
+    fun simulateFall(impactG: Float = 4.8f) {
+        Log.w(TAG, "Simulating fall emergency trigger with impact $impactG g")
+        if (soundLocalAlarm) {
+            beaconManager.triggerBeacon()
+        }
+        onEmergencyTriggered?.invoke(impactG)
+    }
+
     fun start() {
         if (!isEnabled) {
             Log.d(TAG, "Fall detector is disabled; skipping sensor registration")

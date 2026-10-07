@@ -44,3 +44,13 @@ data class DeviceLocationDto(
     @Json(name = "network") val network: String,
     @Json(name = "recordedAt") val recordedAt: String
 )
+
+/**
+ * DTO for POST /devices/{deviceId}/wake response.
+ */
+@JsonClass(generateAdapter = true)
+data class WakeResponseDto(
+    @Json(name = "success") val success: Boolean = false,
+    @Json(name = "deviceId") val deviceId: String? = null,
+    @Json(name = "messageId") val messageId: String? = null
+)

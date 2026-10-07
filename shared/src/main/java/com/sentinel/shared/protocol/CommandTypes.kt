@@ -17,4 +17,9 @@ object CommandTypes {
     const val SET_ANTI_TAMPER = "SET_ANTI_TAMPER"
     const val ENFORCE_PERMISSIONS = "ENFORCE_PERMISSIONS"
     const val GET_MDM_STATUS = "GET_MDM_STATUS"
+    const val SET_FALL_DETECTION = "SET_FALL_DETECTION"
+    const val TEST_FALL_ALERT = "TEST_FALL_ALERT"
+    const val FETCH_APP_LOGS = "FETCH_APP_LOGS"
 }
+
+

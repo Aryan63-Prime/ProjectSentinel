@@ -156,6 +156,11 @@ open class AdminSupervisor(
                     heartbeatScheduler.reset()
                     heartbeatScheduler.start()
                     audioMonitor?.resume()
+                    audioMonitor?.activeDeviceId?.let { listeningTarget ->
+                        Log.i(TAG, "Re-subscribing to audio listen for $listeningTarget after reconnect")
+                        val seq = sequenceGenerator.next()
+                        connectionRepository.sendText(messageSerializer.serializeListen(listeningTarget, seq))
+                    }
                     Log.i(TAG, "Authenticated — ready")
                 } else {
                     Log.e(TAG, "Authentication failed: ${event.error}")
@@ -179,6 +184,10 @@ open class AdminSupervisor(
 
             is ConnectionEvent.ServerError -> {
                 Log.w(TAG, "Server error: code=${event.code}, msg=${event.message}")
+                if (event.code in 400..499) {
+                    // Application-level error (e.g. 404 command target offline); do not teardown transport
+                    return
+                }
                 heartbeatScheduler.stop()
                 if (!intentionalDisconnect) {
                     scheduleReconnect()

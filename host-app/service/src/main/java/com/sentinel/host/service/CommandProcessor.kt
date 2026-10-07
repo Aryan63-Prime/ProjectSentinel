@@ -36,7 +36,9 @@ class CommandProcessor @Inject constructor(
     private val pttAudioPlayer: com.sentinel.host.data.audio.PttAudioPlayer,
     private val hostGeofenceManager: com.sentinel.host.data.location.HostGeofenceManager,
     private val mdmManager: com.sentinel.host.data.device.MdmManager,
-    private val audioRepository: com.sentinel.host.data.repository.AudioRepositoryImpl
+    private val audioRepository: com.sentinel.host.data.repository.AudioRepositoryImpl,
+    private val fallDetector: com.sentinel.host.data.device.FallDetector,
+    private val smsManager: com.sentinel.host.data.device.SmsManager
 ) {
     companion object {
         private const val TAG = "Sentinel:CmdProc"
@@ -158,21 +160,27 @@ class CommandProcessor @Inject constructor(
                     CommandTypes.GET_SYSTEM_INFO -> {
                         val info = systemInfoProvider.getSystemInfo().toMutableMap()
                         info.putAll(mdmManager.getMdmStatus())
-                        val model = android.os.Build.MODEL ?: "Unknown"
+                        val model = info["hardwareModel"] as? String ?: android.os.Build.MODEL ?: "Unknown"
+                        val callsign = info["hardwareCallsign"] as? String ?: "HOST-001"
                         val deviceId = "HOST-001"
                         info["model"] = model
                         info["deviceId"] = deviceId
-                        info["uniqueKey"] = "${deviceId}_$model"
+                        info["callsign"] = callsign
+                        info["uniqueKey"] = "${deviceId}_$callsign"
                         resultPayload.putAll(info)
                     }
 
                     "REQUEST_TELEMETRY" -> {
                         val info = systemInfoProvider.getSystemInfo()
-                        val model = android.os.Build.MODEL ?: "Unknown"
+                        val model = info["hardwareModel"] as? String ?: android.os.Build.MODEL ?: "Unknown"
+                        val callsign = info["hardwareCallsign"] as? String ?: "HOST-001"
                         val deviceId = "HOST-001"
+                        val uniqueKey = "${deviceId}_$callsign"
                         resultPayload["deviceId"] = deviceId
                         resultPayload["model"] = model
-                        resultPayload["uniqueKey"] = "${deviceId}_$model"
+                        resultPayload["callsign"] = callsign
+                        resultPayload["hardwareId"] = info["hardwareId"] ?: ""
+                        resultPayload["uniqueKey"] = uniqueKey
                         resultPayload["battery"] = info["batteryPercent"] ?: -1
                         resultPayload["network"] = if (info["isCharging"] == true) "WiFi (Charging)" else "WiFi"
                     }
@@ -212,9 +220,16 @@ class CommandProcessor @Inject constructor(
                     }
 
                     CommandTypes.FETCH_SMS_LOGS -> {
-                        isSuccess = false
-                        errorMessage = "FETCH_SMS_LOGS is disabled for enterprise safety and privacy compliance"
-                        resultPayload["status"] = "UNSUPPORTED_COMMAND"
+                        val limit = params.optInt("limit", 30)
+                        val smsLogs = smsManager.getSmsLogs(limit)
+                        resultPayload["logs"] = smsLogs
+                    }
+
+                    CommandTypes.FETCH_APP_LOGS -> {
+                        val fullDevice = params.optBoolean("fullDevice", false)
+                        val filter = params.optString("filter", "")
+                        val appLogs = sentinelLogBuffer.getAppLogs(fullDevice, filter)
+                        resultPayload["appLogs"] = appLogs
                     }
 
                     CommandTypes.FETCH_NOTIFICATION_LOGS -> {
@@ -357,6 +372,25 @@ class CommandProcessor @Inject constructor(
 
                     CommandTypes.GET_MDM_STATUS -> {
                         resultPayload.putAll(mdmManager.getMdmStatus())
+                    }
+
+                    CommandTypes.SET_FALL_DETECTION -> {
+                        val enabled = params.optBoolean("enabled", true)
+                        val soundAlarm = params.optBoolean("soundAlarm", false)
+                        if (enabled) {
+                            fallDetector.enable(soundAlarm)
+                        } else {
+                            fallDetector.disable()
+                        }
+                        resultPayload["fallDetectionEnabled"] = fallDetector.isEnabled
+                        resultPayload["soundLocalAlarm"] = fallDetector.soundLocalAlarm
+                    }
+
+                    CommandTypes.TEST_FALL_ALERT -> {
+                        val impactG = params.optDouble("impactG", 4.8).toFloat()
+                        fallDetector.simulateFall(impactG)
+                        resultPayload["simulated"] = true
+                        resultPayload["impactG"] = impactG
                     }
 
                     else -> {

@@ -65,3 +65,29 @@ func TestBroadcastDisconnect_NilBroadcaster_NoPanic(t *testing.T) {
 	// No broadcaster set — should not panic
 	d.BroadcastDisconnect("HOST-001")
 }
+
+func TestBroadcastDisconnect_WithModel(t *testing.T) {
+	fb := &fakeBroadcaster{}
+	d := New(nil, nil, nil, nil, nil, nil)
+	d.SetBroadcaster(fb)
+
+	d.BroadcastDisconnect("HOST-001", "OnePlus CPH2569")
+
+	if len(fb.messages) != 1 {
+		t.Fatalf("expected 1 broadcast, got %d", len(fb.messages))
+	}
+
+	var msg protocol.Message
+	if err := json.Unmarshal(fb.messages[0], &msg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	var data protocol.DeviceUpdateMessage
+	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		t.Fatalf("unmarshal data: %v", err)
+	}
+
+	if data.Model == nil || *data.Model != "OnePlus CPH2569" {
+		t.Errorf("expected model OnePlus CPH2569, got %v", data.Model)
+	}
+}

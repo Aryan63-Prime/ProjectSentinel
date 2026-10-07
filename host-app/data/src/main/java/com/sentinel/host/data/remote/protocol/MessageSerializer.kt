@@ -44,9 +44,10 @@ class MessageSerializer(private val moshi: Moshi = Moshi.Builder().build()) {
         deviceName: String,
         appVersion: String,
         model: String,
-        sequence: Long
+        sequence: Long,
+        fcmToken: String? = null
     ): String {
-        val data = RegisterDataJson(deviceId, deviceName, appVersion, model)
+        val data = RegisterDataJson(deviceId, deviceName, appVersion, model, fcmToken)
         return buildEnvelope(MessageType.REGISTER, sequence) { writer ->
             registerDataAdapter.toJson(writer, data)
         }

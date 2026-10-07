@@ -78,7 +78,8 @@ class AudioMonitor(
     private var playbackJob: Job? = null
 
     @Volatile
-    private var activeDeviceId: String? = null
+    var activeDeviceId: String? = null
+        private set
 
     // Mutable stats counters (updated atomically via _statistics.value = ...)
     private var framesReceived = 0L

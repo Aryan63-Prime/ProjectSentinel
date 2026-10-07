@@ -2,6 +2,7 @@ package com.sentinel.admin.ui.detail
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,7 +32,11 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -91,6 +96,8 @@ fun DeviceDetailScreen(
     onTriggerBeaconClick: () -> Unit = {},
     onCapturePhotoClick: (useFront: Boolean) -> Unit = {},
     onFetchLogsClick: () -> Unit = {},
+    onFetchAppLogsClick: (fullDevice: Boolean, filter: String) -> Unit = { _, _ -> },
+    onClearAppLogsClick: () -> Unit = {},
     onFetchNotifLogsClick: () -> Unit = {},
     onExecuteShellClick: (String) -> Unit = {},
     onCaptureScreenshotClick: () -> Unit = {},
@@ -100,11 +107,13 @@ fun DeviceDetailScreen(
     onSyncContactClick: () -> Unit = {},
     onOpenAddressBookClick: () -> Unit = {},
     onLockDeviceClick: () -> Unit = {},
+    onArmGeofenceClick: () -> Unit = {},
     onToggleAntiTamper: (Boolean) -> Unit = {},
     onEnforcePermissions: () -> Unit = {},
     onRefreshMdmStatus: () -> Unit = {},
     onDismissMdmMessage: () -> Unit = {},
     onDismissDialogs: () -> Unit = {},
+    onWakeDeviceClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showLockConfirmation by remember { mutableStateOf(false) }
@@ -144,6 +153,13 @@ fun DeviceDetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onWakeDeviceClick, enabled = !uiState.isWakingDevice) {
+                        Icon(
+                            imageVector = Icons.Default.Bolt,
+                            contentDescription = "Wake Host via FCM",
+                            tint = if (uiState.isWakingDevice) Color(0xFFFBBF24) else Color(0xFF34D399)
+                        )
+                    }
                     IconButton(onClick = onRefresh) {
                         Icon(
                             Icons.Default.Refresh,
@@ -206,6 +222,10 @@ fun DeviceDetailScreen(
                             onTriggerBeaconClick = { showBeaconConfirmation = true },
                             onCapturePhotoClick = onCapturePhotoClick,
                             onFetchLogsClick = onFetchLogsClick,
+                            hostAppLogs = uiState.hostAppLogs,
+                            isFetchingAppLogs = uiState.isFetchingAppLogs,
+                            onFetchAppLogsClick = onFetchAppLogsClick,
+                            onClearAppLogsClick = onClearAppLogsClick,
                             onFetchNotifLogsClick = onFetchNotifLogsClick,
                             onExecuteShellClick = { onExecuteShellClick("uptime") },
                             onCaptureScreenshotClick = onCaptureScreenshotClick,
@@ -221,10 +241,14 @@ fun DeviceDetailScreen(
                             isLockingDevice = uiState.isLockingDevice,
                             mdmActionMessage = uiState.mdmActionMessage,
                             onLockDeviceClick = { if (!uiState.isLockingDevice) showLockConfirmation = true },
+                            onArmGeofenceClick = onArmGeofenceClick,
                             onToggleAntiTamper = onToggleAntiTamper,
                             onEnforcePermissions = onEnforcePermissions,
                             onRefreshMdmStatus = onRefreshMdmStatus,
                             onDismissMdmMessage = onDismissMdmMessage,
+                            isWakingDevice = uiState.isWakingDevice,
+                            wakeStatusMessage = uiState.wakeStatusMessage,
+                            onWakeDeviceClick = onWakeDeviceClick,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -333,6 +357,10 @@ private fun DeviceContent(
     onTriggerBeaconClick: () -> Unit = {},
     onCapturePhotoClick: (useFront: Boolean) -> Unit = {},
     onFetchLogsClick: () -> Unit = {},
+    hostAppLogs: List<String> = emptyList(),
+    isFetchingAppLogs: Boolean = false,
+    onFetchAppLogsClick: (fullDevice: Boolean, filter: String) -> Unit = { _, _ -> },
+    onClearAppLogsClick: () -> Unit = {},
     onFetchNotifLogsClick: () -> Unit = {},
     onExecuteShellClick: () -> Unit = {},
     onCaptureScreenshotClick: () -> Unit = {},
@@ -348,10 +376,14 @@ private fun DeviceContent(
     isLockingDevice: Boolean = false,
     mdmActionMessage: String? = null,
     onLockDeviceClick: () -> Unit = {},
+    onArmGeofenceClick: () -> Unit = {},
     onToggleAntiTamper: (Boolean) -> Unit = {},
     onEnforcePermissions: () -> Unit = {},
     onRefreshMdmStatus: () -> Unit = {},
     onDismissMdmMessage: () -> Unit = {},
+    isWakingDevice: Boolean = false,
+    wakeStatusMessage: String? = null,
+    onWakeDeviceClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -361,11 +393,46 @@ private fun DeviceContent(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // Status header
-        StatusHeader(device = device, isOnline = isOnline)
+        StatusHeader(
+            device = device,
+            isOnline = isOnline,
+            isWaking = isWakingDevice,
+            onWakeClick = onWakeDeviceClick
+        )
+
+        // FCM Wake status notification banner
+        if (wakeStatusMessage != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E3A8A).copy(alpha = 0.6f)),
+                border = BorderStroke(1.dp, Color(0xFF3B82F6))
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Bolt,
+                        contentDescription = null,
+                        tint = Color(0xFF60A5FA),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = wakeStatusMessage,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFFBFDBFE),
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+        }
 
         DeviceTelemetryStrip(device = device, isOnline = isOnline)
 
-        // Map card
+        // Map card (Now includes coordinates, accuracy, and timestamp)
         DeviceLocationMap(
             location = device.latestLocation,
             deviceName = device.deviceName,
@@ -382,14 +449,18 @@ private fun DeviceContent(
             onFetchNotifLogsClick = onFetchNotifLogsClick,
             onExecuteShellClick = onExecuteShellClick,
             onCaptureScreenshotClick = onCaptureScreenshotClick,
-            onLockDeviceClick = onLockDeviceClick
+            onLockDeviceClick = onLockDeviceClick,
+            onArmGeofenceClick = onArmGeofenceClick
         )
 
-        DeviceConnectionCard(device = device, isOnline = isOnline)
-
-        device.latestLocation?.let { location ->
-            LocationCard(location = location)
-        }
+        // Realtime Host Application & System Logs (B1 of 5)
+        HostAppLogsCard(
+            logs = hostAppLogs,
+            isOnline = isOnline,
+            isFetching = isFetchingAppLogs,
+            onFetchLogs = onFetchAppLogsClick,
+            onClearLogs = onClearAppLogsClick
+        )
 
         // Enterprise MDM & Policy Card
         MdmPolicyCard(
@@ -438,6 +509,10 @@ private fun DeviceContent(
             onOpenAddressBookClick = onOpenAddressBookClick
         )
 
+        // Device & Connection Specs (Moved to bottom, 100% closeable and revealable)
+        DeviceConnectionCard(device = device, isOnline = isOnline)
+
+
         Spacer(modifier = Modifier.height(16.dp))
     }
 }
@@ -450,6 +525,8 @@ private fun DeviceContent(
 private fun StatusHeader(
     device: Device,
     isOnline: Boolean,
+    isWaking: Boolean = false,
+    onWakeClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val displayName = device.deviceName.ifBlank { device.model.ifBlank { "Device ${device.displayId}" } }
@@ -508,9 +585,41 @@ private fun StatusHeader(
                     )
                 }
                 Spacer(modifier = Modifier.height(9.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     DeviceTag(text = device.displayId)
                     DeviceTag(text = if (device.authenticated) "SECURE LINK" else "UNVERIFIED")
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    Button(
+                        onClick = onWakeClick,
+                        enabled = !isWaking,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isOnline) Color(0xFF1E293B) else Color(0xFF0F766E),
+                            disabledContainerColor = Color(0xFF1A222C)
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        modifier = Modifier.height(26.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Bolt,
+                            contentDescription = null,
+                            modifier = Modifier.size(13.dp),
+                            tint = if (isWaking) Color(0xFFFBBF24) else Color(0xFF34D399)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (isWaking) "Waking..." else if (isOnline) "FCM Ping" else "FCM Wake",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isOnline) Color(0xFFAAC7E8) else Color.White
+                        )
+                    }
                 }
             }
         }
@@ -599,25 +708,14 @@ private fun TelemetryTile(
 }
 
 // ============================================================
-// Location Card
+// Technical Device & Connection Card (100% Closeable / Revealable)
 // ============================================================
-
-@Composable
-private fun LocationCard(
-    location: DeviceLocation,
-    modifier: Modifier = Modifier
-) {
-    InfoCard(title = "Location details", icon = Icons.Default.LocationOn, modifier = modifier) {
-        InfoRow("Coordinates", "%.5f, %.5f".format(location.latitude, location.longitude), isMonospace = true)
-        InfoRow("Accuracy", "±%.1f m".format(location.accuracy))
-        InfoRow("Updated", formatTimestamp(location.recordedAt))
-    }
-}
 
 @Composable
 private fun DeviceConnectionCard(device: Device, isOnline: Boolean) {
     var expanded by remember { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -625,33 +723,56 @@ private fun DeviceConnectionCard(device: Device, isOnline: Boolean) {
         border = BorderStroke(1.dp, Color(0xFF293542)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.DevicesOther, contentDescription = null, tint = Color(0xFFAAC7E8), modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "DEVICE & CONNECTION",
-                    modifier = Modifier.weight(1f),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = .8.sp,
-                    color = Color(0xFFAAC7E8)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateContentSize()
+                .padding(horizontal = 14.dp, vertical = 12.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.DevicesOther,
+                    contentDescription = null,
+                    tint = Color(0xFFAAC7E8),
+                    modifier = Modifier.size(18.dp)
                 )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "TECHNICAL DEVICE & CONNECTION SPECS",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = .8.sp,
+                        color = Color(0xFFAAC7E8)
+                    )
+                    Text(
+                        text = if (expanded) "Tap to close specs" else "Tap to reveal connection telemetry",
+                        fontSize = 10.sp,
+                        color = Color(0xFF7A8B9E)
+                    )
+                }
                 IconButton(onClick = { expanded = !expanded }, modifier = Modifier.size(30.dp)) {
                     Icon(
                         imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                         contentDescription = if (expanded) "Hide technical details" else "Show technical details",
-                        tint = Color(0xFF9AA7B6)
+                        tint = Color(0xFF9AA7B6),
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(5.dp))
-            InfoRow("Model", device.model.ifBlank { "Unknown" })
-            InfoRow("App version", device.appVersion.ifBlank { "—" })
-            InfoRow("Connection", if (isOnline && device.authenticated) "Online · authenticated" else if (isOnline) "Online" else "Offline")
-            InfoRow("Last seen", formatTimestamp(device.lastHeartbeat))
+
             androidx.compose.animation.AnimatedVisibility(visible = expanded) {
-                Column {
+                Column(modifier = Modifier.padding(top = 8.dp)) {
+                    InfoRow("Model", device.model.ifBlank { "Unknown" })
+                    InfoRow("App version", device.appVersion.ifBlank { "—" })
+                    InfoRow("Connection", if (isOnline && device.authenticated) "Online · authenticated" else if (isOnline) "Online" else "Offline")
+                    InfoRow("Last seen", formatTimestamp(device.lastHeartbeat))
                     InfoRow("Callsign", device.displayId)
                     InfoRow("Device Token", device.deviceId)
                     InfoRow("Registration", device.registrationState.replaceFirstChar { it.uppercase() })

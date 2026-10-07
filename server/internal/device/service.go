@@ -47,8 +47,14 @@ func (s *Service) ValidateRegistration(message protocol.RegisterMessage, authent
 		return ErrUnauthenticatedDevice
 	}
 
-	if strings.TrimSpace(authenticatedDeviceID) != "" && message.DeviceID != authenticatedDeviceID {
-		return ErrDeviceMismatch
+	if strings.TrimSpace(authenticatedDeviceID) != "" {
+		matches := message.DeviceID == authenticatedDeviceID ||
+			strings.HasPrefix(message.DeviceID, authenticatedDeviceID+"_") ||
+			strings.HasPrefix(message.DeviceID, authenticatedDeviceID+"/") ||
+			strings.HasPrefix(message.DeviceID, authenticatedDeviceID+"-")
+		if !matches {
+			return ErrDeviceMismatch
+		}
 	}
 
 	if alreadyRegistered {

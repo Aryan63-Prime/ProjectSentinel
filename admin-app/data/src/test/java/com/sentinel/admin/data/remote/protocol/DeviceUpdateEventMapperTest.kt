@@ -42,10 +42,12 @@ class DeviceUpdateEventMapperTest {
 
     @Test
     fun `disconnected event maps correctly`() {
-        val data = DeviceUpdateDataJson(event = "disconnected", deviceId = "HOST-001")
+        val data = DeviceUpdateDataJson(event = "disconnected", deviceId = "HOST-001", model = "OnePlus CPH2569")
         val result = mapper.map(data)
         assertTrue(result is DeviceUpdateEvent.DeviceDisconnected)
-        assertEquals("HOST-001", result!!.deviceId)
+        val disc = result as DeviceUpdateEvent.DeviceDisconnected
+        assertEquals("HOST-001", disc.deviceId)
+        assertEquals("OnePlus CPH2569", disc.model)
     }
 
     @Test
@@ -53,12 +55,14 @@ class DeviceUpdateEventMapperTest {
         val data = DeviceUpdateDataJson(
             event = "heartbeat",
             deviceId = "HOST-001",
-            timestamp = "2026-07-18T04:00:00Z"
+            timestamp = "2026-07-18T04:00:00Z",
+            model = "vivo I2401"
         )
         val result = mapper.map(data)
         assertTrue(result is DeviceUpdateEvent.HeartbeatReceived)
         val hb = result as DeviceUpdateEvent.HeartbeatReceived
         assertEquals("2026-07-18T04:00:00Z", hb.timestamp)
+        assertEquals("vivo I2401", hb.model)
     }
 
     @Test

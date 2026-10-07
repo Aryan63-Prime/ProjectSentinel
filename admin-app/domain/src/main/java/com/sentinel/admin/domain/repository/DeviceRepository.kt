@@ -27,4 +27,16 @@ interface DeviceRepository {
 
     /** Debug statistics for event processing. */
     val eventStatistics: StateFlow<EventStatistics>
+
+    /** Active emergency SOS alert (e.g. fall detection), or null if dismissed. */
+    val emergencyAlert: StateFlow<com.sentinel.admin.domain.model.EmergencyAlert?>
+
+    /** Dismisses or acknowledges the currently active emergency alert. */
+    fun dismissEmergencyAlert()
+
+    /** Triggers a test emergency alert for verification and simulation. */
+    fun triggerTestEmergencyAlert(alert: com.sentinel.admin.domain.model.EmergencyAlert)
+
+    /** Dispatches a high-priority FCM push to wake a sleeping host device. */
+    suspend fun wakeDevice(deviceId: String): Result<Boolean>
 }

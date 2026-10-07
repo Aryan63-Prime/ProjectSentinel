@@ -16,6 +16,7 @@ class SessionManagerImpl(context: Context) : SessionManager {
         private const val PREFS_NAME = "sentinel_session"
         private const val KEY_TOKEN = "jwt_token"
         private const val KEY_SERVER_URL = "server_url"
+        private const val KEY_FCM_TOKEN = "fcm_token"
     }
 
     private val prefs: SharedPreferences by lazy {
@@ -52,6 +53,14 @@ class SessionManagerImpl(context: Context) : SessionManager {
 
     override fun getServerUrl(): String? {
         return prefs.getString(KEY_SERVER_URL, null)
+    }
+
+    override fun saveFcmToken(token: String) {
+        prefs.edit().putString(KEY_FCM_TOKEN, token).apply()
+    }
+
+    override fun getFcmToken(): String? {
+        return prefs.getString(KEY_FCM_TOKEN, null)
     }
 
     override fun hasSession(): Boolean {

@@ -15,7 +15,9 @@ type DeviceUpdateMessage struct {
 	Timestamp  *string  `json:"timestamp,omitempty"`
 	DeviceName *string  `json:"deviceName,omitempty"`
 	AppVersion *string  `json:"appVersion,omitempty"`
-	Model      *string  `json:"model,omitempty"`
+	Model         *string  `json:"model,omitempty"`
+	TriggerReason *string  `json:"triggerReason,omitempty"`
+	ImpactGForce  *float64 `json:"impactGForce,omitempty"`
 }
 
 // Device update event names.
@@ -27,4 +29,5 @@ const (
 	EventBattery      = "battery"
 	EventNetwork      = "network"
 	EventMetadata     = "metadata"
+	EventEmergencySOS = "emergency_sos"
 )

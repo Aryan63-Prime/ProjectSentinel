@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.sentinel.host"
     android:installLocation="internalOnly">
 
     <!-- Network -->
@@ -39,11 +38,15 @@
     <!-- Wake Lock -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- System Diagnostics & Logcat -->
+    <uses-permission android:name="android.permission.READ_LOGS" />
+
     <!-- Notifications (API 33+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- Contacts -->
+    <!-- Contacts & SMS -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_SMS" />
 
     <application
         android:name=".SentinelApp"
@@ -129,6 +132,15 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- Firebase Cloud Messaging Push-to-Wake Service -->
+        <service
+            android:name=".service.SentinelFcmService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
         </service>
 
     </application>

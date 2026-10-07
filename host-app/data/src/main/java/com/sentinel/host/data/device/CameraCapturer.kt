@@ -19,6 +19,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import android.os.HandlerThread
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -34,10 +37,12 @@ class CameraCapturer @Inject constructor(
         private const val TAG = "Sentinel:Camera"
     }
 
+    private val cameraMutex = Mutex()
+
     @SuppressLint("MissingPermission")
-    suspend fun capturePhoto(useFrontCamera: Boolean = false): Map<String, Any> {
+    suspend fun capturePhoto(useFrontCamera: Boolean = false): Map<String, Any> = cameraMutex.withLock {
         val result = withTimeoutOrNull(6000L) {
-            suspendCancellableCoroutine { continuation ->
+            suspendCancellableCoroutine<Map<String, Any>> { continuation ->
                 try {
                     val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
                     val targetFacing = if (useFrontCamera) {
@@ -74,13 +79,27 @@ class CameraCapturer @Inject constructor(
                     val actualFacing = characteristics.get(CameraCharacteristics.LENS_FACING) ?: targetFacing
                     Log.i(TAG, "Final Selected Camera2 ID '$selectedCameraId' (facing=$actualFacing, sensorOrientation=$sensorOrientation)")
 
-                    val handler = Handler(Looper.getMainLooper())
-                    val imageReader = ImageReader.newInstance(1920, 1080, ImageFormat.JPEG, 2)
+                    val cameraThread = HandlerThread("Sentinel-CameraThread").apply { start() }
+                    val handler = Handler(cameraThread.looper)
+                    var imageReader: ImageReader? = null
                     var cameraDevice: CameraDevice? = null
 
-                    imageReader.setOnImageAvailableListener({ reader ->
+                    fun cleanup() {
+                        try { imageReader?.close() } catch (_: Exception) {}
+                        try { cameraDevice?.close() } catch (_: Exception) {}
+                        try { cameraThread.quitSafely() } catch (_: Exception) {}
+                    }
+
+                    continuation.invokeOnCancellation {
+                        cleanup()
+                    }
+
+                    val reader = ImageReader.newInstance(1920, 1080, ImageFormat.JPEG, 2)
+                    imageReader = reader
+
+                    reader.setOnImageAvailableListener({ ir ->
                         Log.i(TAG, "Camera2 onImageAvailable triggered!")
-                        val image = reader.acquireLatestImage()
+                        val image = ir.acquireLatestImage()
                         if (image != null) {
                             val buffer = image.planes[0].buffer
                             val bytes = ByteArray(buffer.remaining())
@@ -109,9 +128,9 @@ class CameraCapturer @Inject constructor(
                             } catch (e: Exception) {
                                 Log.e(TAG, "Failed to rotate Camera2 bitmap: ${e.message}", e)
                                 base64Image = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                            } finally {
+                                cleanup()
                             }
-
-                            cameraDevice?.close()
 
                             if (continuation.isActive) {
                                 continuation.resume(
@@ -130,7 +149,7 @@ class CameraCapturer @Inject constructor(
                             Log.i(TAG, "Camera2 device onOpened")
                             cameraDevice = camera
                             try {
-                                val surface = imageReader.surface
+                                val surface = reader.surface
                                 val captureBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)
                                 captureBuilder.addTarget(surface)
                                 captureBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO)
@@ -152,18 +171,24 @@ class CameraCapturer @Inject constructor(
 
                                                 session.setRepeatingRequest(previewBuilder.build(), null, handler)
 
-                                                // Allow 800ms of preview frames for hardware Auto-Exposure (AE) and Auto-Focus (AF) to settle
-                                                Thread.sleep(800)
-
-                                                session.stopRepeating()
-                                                session.capture(captureBuilder.build(), object : CameraCaptureSession.CaptureCallback() {
-                                                    override fun onCaptureFailed(session: CameraCaptureSession, request: CaptureRequest, failure: CaptureFailure) {
-                                                        Log.e(TAG, "Camera2 capture failed: reason=${failure.reason}")
+                                                // Allow 500ms of preview frames on background cameraThread for hardware AE/AF to settle
+                                                handler.postDelayed({
+                                                    try {
+                                                        session.stopRepeating()
+                                                        session.capture(captureBuilder.build(), object : CameraCaptureSession.CaptureCallback() {
+                                                            override fun onCaptureFailed(session: CameraCaptureSession, request: CaptureRequest, failure: CaptureFailure) {
+                                                                Log.e(TAG, "Camera2 capture failed: reason=${failure.reason}")
+                                                                cleanup()
+                                                            }
+                                                        }, handler)
+                                                    } catch (e: Exception) {
+                                                        Log.e(TAG, "Camera2 capture delayed exception: ${e.message}")
+                                                        cleanup()
                                                     }
-                                                }, handler)
+                                                }, 500L)
                                             } catch (e: Exception) {
                                                 Log.e(TAG, "Camera2 session.capture exception: ${e.message}")
-                                                camera.close()
+                                                cleanup()
                                                 if (continuation.isActive) {
                                                     continuation.resume(mapOf("success" to false, "error" to "Capture failed: ${e.message}"))
                                                 }
@@ -172,7 +197,7 @@ class CameraCapturer @Inject constructor(
 
                                         override fun onConfigureFailed(session: CameraCaptureSession) {
                                             Log.e(TAG, "Camera2 session onConfigureFailed")
-                                            camera.close()
+                                            cleanup()
                                             if (continuation.isActive) {
                                                 continuation.resume(mapOf("success" to false, "error" to "Session config failed"))
                                             }
@@ -181,7 +206,7 @@ class CameraCapturer @Inject constructor(
                                     handler
                                 )
                             } catch (e: Exception) {
-                                camera.close()
+                                cleanup()
                                 if (continuation.isActive) {
                                     continuation.resume(mapOf("success" to false, "error" to "Camera open exception: ${e.message}"))
                                 }
@@ -189,7 +214,7 @@ class CameraCapturer @Inject constructor(
                         }
 
                         override fun onDisconnected(camera: CameraDevice) {
-                            camera.close()
+                            cleanup()
                             if (continuation.isActive) {
                                 continuation.resume(mapOf("success" to false, "error" to "Camera disconnected"))
                             }
@@ -197,7 +222,7 @@ class CameraCapturer @Inject constructor(
 
                         override fun onError(camera: CameraDevice, error: Int) {
                             Log.e(TAG, "Camera2 onError code: $error — will trigger Camera1 fallback")
-                            camera.close()
+                            cleanup()
                             if (continuation.isActive) {
                                 continuation.resume(mapOf("success" to false, "error" to "Camera2 error: $error"))
                             }

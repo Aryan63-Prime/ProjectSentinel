@@ -53,6 +53,48 @@ func (h *Handler) ListDevices(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, ListDevicesResponse{Devices: devices})
 }
 
+// RouteDevice routes /devices/{deviceId} or /devices/{deviceId}/wake.
+func (h *Handler) RouteDevice(w http.ResponseWriter, r *http.Request) {
+	if strings.HasSuffix(r.URL.Path, "/wake") {
+		h.WakeDevice(w, r)
+		return
+	}
+	h.GetDevice(w, r)
+}
+
+// WakeDevice handles POST /devices/{deviceId}/wake.
+func (h *Handler) WakeDevice(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		writeError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
+		return
+	}
+
+	if !h.authorize(w, r) {
+		return
+	}
+
+	trimmed := strings.TrimPrefix(r.URL.Path, "/devices/")
+	trimmed = strings.TrimSuffix(trimmed, "/wake")
+	deviceID, err := url.PathUnescape(trimmed)
+	if err != nil || strings.TrimSpace(deviceID) == "" || strings.Contains(deviceID, "/") {
+		writeError(w, http.StatusBadRequest, "Invalid device ID in path")
+		return
+	}
+
+	msgID, err := h.service.WakeDevice(r.Context(), deviceID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success":   true,
+		"deviceId":  deviceID,
+		"messageId": msgID,
+	})
+}
+
 // GetDevice handles GET /devices/{deviceId}.
 func (h *Handler) GetDevice(w http.ResponseWriter, r *http.Request) {
 	if !h.allowGET(w, r) || !h.authorize(w, r) {

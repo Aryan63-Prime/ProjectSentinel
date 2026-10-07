@@ -65,11 +65,17 @@ type Device struct {
 	LatestLocation    *repository.Location `json:"latestLocation"`
 }
 
+// FcmWaker triggers push messages to wake devices.
+type FcmWaker interface {
+	WakeDevice(ctx context.Context, deviceID string) (string, error)
+}
+
 // Service builds admin-facing device views from live sessions and Redis state.
 type Service struct {
 	sessions  SessionSource
 	locations LocationReader
 	heartbeat HeartbeatPolicy
+	fcm       FcmWaker
 }
 
 // NewService creates an admin API service.
@@ -79,6 +85,19 @@ func NewService(sessions SessionSource, locations LocationReader, heartbeat Hear
 		locations: locations,
 		heartbeat: heartbeat,
 	}
+}
+
+// SetFcmService binds the FCM waker to the admin service.
+func (s *Service) SetFcmService(f FcmWaker) {
+	s.fcm = f
+}
+
+// WakeDevice sends a high-priority FCM wakeup ping to the device.
+func (s *Service) WakeDevice(ctx context.Context, deviceID string) (string, error) {
+	if s.fcm == nil {
+		return "", errors.New("fcm service not configured")
+	}
+	return s.fcm.WakeDevice(ctx, deviceID)
 }
 
 // ListDevices returns connected devices with their realtime state.

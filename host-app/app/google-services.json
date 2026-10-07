@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "913942018633",
+    "project_id": "project-sentinel-c8016",
+    "storage_bucket": "project-sentinel-c8016.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:913942018633:android:1d993048efbf3218c1dd98",
+        "android_client_info": {
+          "package_name": "com.sentinel.host"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAnbyPhrYbZii95145cDZGl3HoSWLtIxzU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

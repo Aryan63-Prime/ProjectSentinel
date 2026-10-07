@@ -1,6 +1,7 @@
 package com.sentinel.admin.ui.detail
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun ShellOutputDialog(
     lastOutput: String,
@@ -68,7 +70,40 @@ fun ShellOutputDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Tactical Quick Command Presets (B5 of 5)
+                androidx.compose.foundation.layout.FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val presets = listOf(
+                        "uptime" to "Uptime",
+                        "top -n 1" to "top (CPU)",
+                        "df -h" to "df (Disk)",
+                        "ip route" to "Routes",
+                        "dumpsys battery" to "Battery",
+                        "pm list packages -3" to "App List"
+                    )
+                    presets.forEach { (cmd, label) ->
+                        androidx.compose.material3.AssistChip(
+                            onClick = {
+                                commandText = cmd
+                                onExecute(cmd)
+                            },
+                            label = { Text(label, fontSize = 10.sp) },
+                            colors = androidx.compose.material3.AssistChipDefaults.assistChipColors(
+                                containerColor = Color(0xFF19232E),
+                                labelColor = Color(0xFFAAC7E8)
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF293542)),
+                            modifier = Modifier.height(28.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Box(
                     modifier = Modifier

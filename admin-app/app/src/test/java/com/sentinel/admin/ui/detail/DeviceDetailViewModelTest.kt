@@ -67,6 +67,10 @@ class DeviceDetailViewModelTest {
         override val devices: StateFlow<Map<String, Device>> = MutableStateFlow(emptyMap())
         override val deviceUpdates: SharedFlow<DeviceUpdateEvent> = MutableSharedFlow()
         override val eventStatistics: StateFlow<EventStatistics> = MutableStateFlow(EventStatistics())
+        override val emergencyAlert: StateFlow<com.sentinel.admin.domain.model.EmergencyAlert?> = MutableStateFlow(null)
+
+        override fun dismissEmergencyAlert() {}
+        override fun triggerTestEmergencyAlert(alert: com.sentinel.admin.domain.model.EmergencyAlert) {}
 
         override suspend fun getDevice(deviceId: String): Result<Device> {
             getDeviceCallCount++
@@ -407,7 +411,7 @@ class DeviceDetailViewModelTest {
 
         viewModel.onListenClick()
         assertEquals(1, fakeAudioRepo.listenCalls.size)
-        assertEquals("CONN-001", fakeAudioRepo.listenCalls[0])
+        assertEquals("HOST-0001", fakeAudioRepo.listenCalls[0])
     }
 
     @Test
@@ -417,7 +421,7 @@ class DeviceDetailViewModelTest {
 
         viewModel.onStopClick()
         assertEquals(1, fakeAudioRepo.stopCalls.size)
-        assertEquals("CONN-001", fakeAudioRepo.stopCalls[0])
+        assertEquals("HOST-0001", fakeAudioRepo.stopCalls[0])
     }
 
     // ============================================================

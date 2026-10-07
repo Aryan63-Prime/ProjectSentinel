@@ -89,7 +89,8 @@ fun AdminNavGraph() {
                 onRecordingsClick = {
                     navController.navigate(AdminRoutes.RECORDINGS)
                 },
-                onRetry = viewModel::retry
+                onRetry = viewModel::retry,
+                onDismissEmergency = viewModel::dismissEmergencyAlert
             )
         }
 
@@ -114,6 +115,8 @@ fun AdminNavGraph() {
                 onTriggerBeaconClick = viewModel::sendTriggerBeaconCommand,
                 onCapturePhotoClick = { useFront -> viewModel.sendCapturePhotoCommand(useFront) },
                 onFetchLogsClick = viewModel::sendFetchLogsCommand,
+                onFetchAppLogsClick = { fullDevice, filter -> viewModel.sendFetchAppLogsCommand(fullDevice, filter) },
+                onClearAppLogsClick = viewModel::clearAppLogs,
                 onFetchNotifLogsClick = viewModel::sendFetchNotificationLogsCommand,
                 onExecuteShellClick = viewModel::sendExecuteShellCommand,
                 onCaptureScreenshotClick = viewModel::sendCaptureScreenshotCommand,
@@ -123,11 +126,13 @@ fun AdminNavGraph() {
                 onSyncContactClick = viewModel::sendSyncContactsCommand,
                 onOpenAddressBookClick = viewModel::openAddressBookDialog,
                 onLockDeviceClick = viewModel::lockDevice,
+                onArmGeofenceClick = { viewModel.armPerimeterGeofence(100f) },
                 onToggleAntiTamper = viewModel::setAntiTamper,
                 onEnforcePermissions = viewModel::enforcePermissions,
                 onRefreshMdmStatus = viewModel::fetchMdmStatus,
                 onDismissMdmMessage = viewModel::dismissMdmMessage,
-                onDismissDialogs = viewModel::dismissDialogs
+                onDismissDialogs = viewModel::dismissDialogs,
+                onWakeDeviceClick = viewModel::wakeDevice
             )
         }
 

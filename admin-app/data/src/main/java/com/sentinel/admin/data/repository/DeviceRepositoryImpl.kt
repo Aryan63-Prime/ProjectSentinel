@@ -71,6 +71,23 @@ class DeviceRepositoryImpl(
     private val _eventStatistics = MutableStateFlow(EventStatistics())
     override val eventStatistics: StateFlow<EventStatistics> = _eventStatistics.asStateFlow()
 
+    private val _emergencyAlert = MutableStateFlow<com.sentinel.admin.domain.model.EmergencyAlert?>(null)
+    override val emergencyAlert: StateFlow<com.sentinel.admin.domain.model.EmergencyAlert?> = _emergencyAlert.asStateFlow()
+
+    private val notificationManager: com.sentinel.admin.data.notification.EmergencyNotificationManager? by lazy {
+        context?.let { com.sentinel.admin.data.notification.EmergencyNotificationManager(it) }
+    }
+
+    override fun dismissEmergencyAlert() {
+        notificationManager?.silenceAlarm()
+        _emergencyAlert.value = null
+    }
+
+    override fun triggerTestEmergencyAlert(alert: com.sentinel.admin.domain.model.EmergencyAlert) {
+        _emergencyAlert.value = alert
+        notificationManager?.triggerEmergencyAlert(alert)
+    }
+
     /** Per-device last sequence for ordering. */
     private val lastSequence = mutableMapOf<String, Long>()
 
@@ -268,7 +285,7 @@ class DeviceRepositoryImpl(
                         authenticated = obj.optBoolean("authenticated", true),
                         registered = obj.optBoolean("registered", true),
                         registrationState = obj.optString("registrationState", "registered"),
-                        heartbeatStatus = obj.optString("heartbeatStatus", "online"),
+                        heartbeatStatus = obj.optString("heartbeatStatus", "offline"),
                         connectedAt = obj.optString("connectedAt", ""),
                         lastHeartbeat = obj.optString("lastHeartbeat", ""),
                         deviceName = obj.optString("deviceName", ""),
@@ -442,12 +459,19 @@ class DeviceRepositoryImpl(
                 }
 
                 val resolvedLocation = existing?.latestLocation ?: if (!isEchoOfAnotherDevice) serverLoc else null
-                val callsign = existing?.callsign?.ifBlank { null }
-                    ?: getOrCreateCallsign(dev.uniqueKey, dev.model)
+                val hwCallsign = Regex("""\((HOST-[A-Za-z0-9_-]+)\)""").find(dev.deviceName)?.groupValues?.get(1) ?: ""
+                val callsign = hwCallsign.ifBlank {
+                    existing?.callsign?.ifBlank { null }
+                        ?: getOrCreateCallsign(dev.uniqueKey, dev.model)
+                }
+
+                val isStaleOrOffline = dev.heartbeatStatus.equals("stale", ignoreCase = true) ||
+                        dev.heartbeatStatus.equals("offline", ignoreCase = true)
+                val status = if (isStaleOrOffline) "offline" else "online"
 
                 val merged = dev.copy(
                     latestLocation = resolvedLocation,
-                    heartbeatStatus = "online",
+                    heartbeatStatus = status,
                     callsign = callsign
                 )
 
@@ -552,6 +576,25 @@ class DeviceRepositoryImpl(
         }
     }
 
+    override suspend fun wakeDevice(deviceId: String): Result<Boolean> {
+        return try {
+            val token = authRepository.getToken()
+                ?: return Result.failure(IllegalStateException("Not authenticated"))
+
+            val serverDeviceId = if (deviceId.contains("_")) deviceId.substringBefore("_") else deviceId
+            val response = deviceApi.wakeDevice("Bearer $token", serverDeviceId)
+            if (response.success) {
+                Log.i(TAG, "Successfully sent high-priority FCM wakeup to $deviceId (msgId=${response.messageId})")
+                Result.success(true)
+            } else {
+                Result.failure(Exception("FCM wake ping failed"))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error dispatching FCM wakeup to $deviceId: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
     // ============================================================
     // WebSocket event handling
     // ============================================================
@@ -616,14 +659,19 @@ class DeviceRepositoryImpl(
         when (event) {
             is DeviceUpdateEvent.DeviceConnected -> {
                 _devices.update { current ->
+                    val hwCallsign = Regex("""\((HOST-[A-Za-z0-9_-]+)\)""").find(event.deviceName ?: "")?.groupValues?.get(1) ?: ""
                     val key = if (!event.model.isNullOrBlank()) {
                         "${event.deviceId}_${event.model}"
+                    } else if (hwCallsign.isNotBlank()) {
+                        "${event.deviceId}_$hwCallsign"
                     } else {
                         current.values.find { it.deviceId == event.deviceId }?.uniqueKey ?: event.deviceId
                     }
-                    val existing = current[key] ?: current[event.deviceId]
+                    val existing = current[key] ?: (if (hwCallsign.isNotBlank()) current["${event.deviceId}_$hwCallsign"] else null) ?: current[event.deviceId]
                     val resolvedModel = event.model?.takeIf { it.isNotBlank() } ?: existing?.model ?: ""
-                    val callsign = existing?.callsign?.ifBlank { null } ?: getOrCreateCallsign(key, resolvedModel)
+                    val callsign = hwCallsign.ifBlank {
+                        existing?.callsign?.ifBlank { null } ?: getOrCreateCallsign(key, resolvedModel)
+                    }
                     val patched = existing?.copy(
                         heartbeatStatus = "online",
                         registered = true,
@@ -636,6 +684,8 @@ class DeviceRepositoryImpl(
 
                     val updated = current.toMutableMap()
                     updated[patched.uniqueKey] = patched
+                    if (key != patched.uniqueKey) updated[key] = patched
+                    if (hwCallsign.isNotBlank()) updated["${patched.deviceId}_$hwCallsign"] = patched
                     if (patched.connectionId.isNotBlank()) updated[patched.connectionId] = patched
                     val distinct = updated.values.filter { it.deviceId == patched.deviceId }.distinctBy { it.uniqueKey }
                     if (distinct.size <= 1 || updated[patched.deviceId]?.uniqueKey == patched.uniqueKey) {
@@ -648,9 +698,29 @@ class DeviceRepositoryImpl(
 
             is DeviceUpdateEvent.DeviceDisconnected -> {
                 _devices.update { current ->
+                    val eventModel = event.model
+                    if (!eventModel.isNullOrBlank()) {
+                        val matchingTarget = current.values.find {
+                            it.deviceId == event.deviceId && it.model.equals(eventModel, ignoreCase = true)
+                        } ?: current.values.find { it.uniqueKey == "${event.deviceId}_$eventModel" }
+
+                        if (matchingTarget != null) {
+                            val patched = matchingTarget.copy(heartbeatStatus = "offline")
+                            val updated = current.toMutableMap()
+                            updated[patched.uniqueKey] = patched
+                            if (patched.connectionId.isNotBlank()) updated[patched.connectionId] = patched
+                            val distinct = updated.values.filter { it.deviceId == patched.deviceId }.distinctBy { it.uniqueKey }
+                            if (distinct.size <= 1 || updated[patched.deviceId]?.uniqueKey == patched.uniqueKey) {
+                                updated[patched.deviceId] = patched
+                            }
+                            saveDeviceCache(updated)
+                            return@update updated
+                        }
+                    }
+
                     val distinctDevices = current.values.filter { it.deviceId == event.deviceId }.distinctBy { it.uniqueKey }
                     if (distinctDevices.size <= 1) {
-                        val existing = current[event.deviceId] ?: return@update current
+                        val existing = current[event.deviceId] ?: current.values.firstOrNull { it.deviceId == event.deviceId } ?: return@update current
                         val patched = existing.copy(heartbeatStatus = "offline")
                         val updated = current.toMutableMap()
                         updated[patched.uniqueKey] = patched
@@ -659,8 +729,7 @@ class DeviceRepositoryImpl(
                         saveDeviceCache(updated)
                         updated
                     } else {
-                        // When multiple devices share deviceId, server EventDisconnected without model
-                        // could be from either phone. We do not mark both offline prematurely.
+                        // When multiple devices share deviceId and model is absent, do not mark both offline prematurely.
                         current
                     }
                 }
@@ -668,25 +737,61 @@ class DeviceRepositoryImpl(
 
             is DeviceUpdateEvent.HeartbeatReceived -> {
                 _devices.update { current ->
-                    val matchingKeys = current.entries
-                        .filter { it.value.deviceId == event.deviceId }
-                        .map { it.key }
-                    if (matchingKeys.isEmpty()) {
-                        val existing = current[event.deviceId] ?: return@update current
-                        current + (event.deviceId to existing.copy(
+                    val eventModel = event.model
+                    if (!eventModel.isNullOrBlank()) {
+                        val matchingTarget = current.values.find {
+                            it.deviceId == event.deviceId && it.model.equals(eventModel, ignoreCase = true)
+                        } ?: current.values.find { it.uniqueKey == "${event.deviceId}_$eventModel" }
+
+                        if (matchingTarget != null) {
+                            val patched = matchingTarget.copy(
+                                heartbeatStatus = "online",
+                                lastHeartbeat = event.timestamp ?: matchingTarget.lastHeartbeat
+                            )
+                            val updated = current.toMutableMap()
+                            updated[patched.uniqueKey] = patched
+                            if (patched.connectionId.isNotBlank()) updated[patched.connectionId] = patched
+                            val distinct = updated.values.filter { it.deviceId == patched.deviceId }.distinctBy { it.uniqueKey }
+                            if (distinct.size <= 1 || updated[patched.deviceId]?.uniqueKey == patched.uniqueKey) {
+                                updated[patched.deviceId] = patched
+                            }
+                            saveDeviceCache(updated)
+                            return@update updated
+                        }
+                    }
+
+                    val distinctDevices = current.values.filter { it.deviceId == event.deviceId }.distinctBy { it.uniqueKey }
+                    if (distinctDevices.size <= 1) {
+                        val existing = current[event.deviceId] ?: current.values.firstOrNull { it.deviceId == event.deviceId } ?: return@update current
+                        val patched = existing.copy(
                             heartbeatStatus = "online",
                             lastHeartbeat = event.timestamp ?: existing.lastHeartbeat
-                        ))
-                    } else {
+                        )
                         val updated = current.toMutableMap()
-                        for (k in matchingKeys) {
-                            updated[k] = updated[k]!!.copy(
-                                heartbeatStatus = "online",
-                                lastHeartbeat = event.timestamp ?: updated[k]!!.lastHeartbeat
-                            )
-                        }
+                        updated[patched.uniqueKey] = patched
+                        if (patched.connectionId.isNotBlank()) updated[patched.connectionId] = patched
+                        updated[event.deviceId] = patched
                         saveDeviceCache(updated)
                         updated
+                    } else {
+                        // Multiple distinct devices share this ID and model was omitted:
+                        // Only refresh the timestamp of the device that is already online, never reviving offline units!
+                        val updated = current.toMutableMap()
+                        var modified = false
+                        for ((k, d) in current) {
+                            if (d.deviceId == event.deviceId && d.heartbeatStatus == "online") {
+                                updated[k] = d.copy(
+                                    lastHeartbeat = event.timestamp ?: d.lastHeartbeat
+                                )
+                                modified = true
+                            }
+                        }
+                        if (modified) {
+                            saveDeviceCache(updated)
+                            updated
+                        } else {
+                            current
+                        }
                     }
                 }
             }
@@ -927,6 +1032,53 @@ class DeviceRepositoryImpl(
                     }
                 }
             }
+
+            is DeviceUpdateEvent.EmergencySos -> {
+                Log.e(TAG, "EMERGENCY SOS: deviceId=${event.deviceId}, reason=${event.triggerReason}, impact=${event.impactGForce}g")
+                val currentDevices = _devices.value
+                val existingDevice = currentDevices.values.firstOrNull {
+                    it.deviceId == event.deviceId &&
+                    (event.model == null || it.model.equals(event.model, ignoreCase = true))
+                } ?: currentDevices[event.deviceId]
+
+                val resolvedModel = event.model ?: existingDevice?.model ?: "Unknown"
+                val callsign = existingDevice?.callsign ?: getOrCreateCallsign(
+                    uniqueKey = "${event.deviceId}_$resolvedModel",
+                    model = resolvedModel
+                )
+
+                val alert = com.sentinel.admin.domain.model.EmergencyAlert(
+                    deviceId = event.deviceId,
+                    callsign = callsign,
+                    model = resolvedModel,
+                    triggerReason = event.triggerReason,
+                    impactGForce = event.impactGForce,
+                    latitude = event.latitude ?: existingDevice?.latestLocation?.latitude,
+                    longitude = event.longitude ?: existingDevice?.latestLocation?.longitude,
+                    accuracy = event.accuracy ?: existingDevice?.latestLocation?.accuracy,
+                    battery = event.battery ?: existingDevice?.latestLocation?.battery,
+                    timestamp = System.currentTimeMillis()
+                )
+
+                _emergencyAlert.value = alert
+                notificationManager?.triggerEmergencyAlert(alert)
+
+                // If coordinates or battery provided in SOS, patch device location
+                val lat = event.latitude
+                val lng = event.longitude
+                if (lat != null && lng != null) {
+                    val locEvent = DeviceUpdateEvent.LocationUpdated(
+                        deviceId = event.deviceId,
+                        latitude = lat,
+                        longitude = lng,
+                        accuracy = event.accuracy,
+                        battery = event.battery,
+                        network = null,
+                        model = event.model
+                    )
+                    applyEvent(locEvent)
+                }
+            }
         }
     }
 
@@ -955,8 +1107,12 @@ class DeviceRepositoryImpl(
     private fun handleTelemetryReport(payload: Map<String, Any?>) {
         val model = (payload["model"] as? String)?.takeIf { it.isNotBlank() }
         val deviceId = (payload["deviceId"] as? String)?.takeIf { it.isNotBlank() } ?: "HOST-001"
+        val callsign = (payload["callsign"] as? String)?.takeIf { it.isNotBlank() }
+        val hardwareId = (payload["hardwareId"] as? String)?.takeIf { it.isNotBlank() }
         val uniqueKey = (payload["uniqueKey"] as? String)?.takeIf { it.isNotBlank() }
-            ?: if (model != null) "${deviceId}_$model" else null
+            ?: if (callsign != null) "${deviceId}_$callsign"
+            else if (model != null) "${deviceId}_$model"
+            else null
 
         val battery = (payload["battery"] as? Number)?.toInt()
             ?: (payload["batteryPercent"] as? Number)?.toInt()
@@ -973,6 +1129,8 @@ class DeviceRepositoryImpl(
         _devices.update { current ->
             val targetKey = if (uniqueKey != null && current.containsKey(uniqueKey)) {
                 uniqueKey
+            } else if (callsign != null && current.values.any { it.resolvedCallsign.equals(callsign, ignoreCase = true) }) {
+                current.values.find { it.resolvedCallsign.equals(callsign, ignoreCase = true) }?.uniqueKey
             } else if (model != null) {
                 current.entries.find { it.value.model.equals(model, ignoreCase = true) }?.key
                     ?: "${deviceId}_$model"
@@ -1056,6 +1214,7 @@ class DeviceRepositoryImpl(
             val existingCallsign = existing?.callsign?.ifBlank { null }
             val callsign = existingCallsign ?: getOrCreateCallsign(targetKey, model ?: "")
 
+            val resolvedCallsign = callsign ?: existing?.callsign?.ifBlank { null } ?: getOrCreateCallsign(targetKey, model ?: "")
             val patched = (existing ?: Device(
                 deviceId = deviceId,
                 connectionId = "",
@@ -1065,17 +1224,19 @@ class DeviceRepositoryImpl(
                 heartbeatStatus = "online",
                 connectedAt = "",
                 lastHeartbeat = currentUtc,
-                deviceName = model ?: deviceId,
+                deviceName = if (callsign != null) "$model ($callsign)" else (model ?: deviceId),
                 appVersion = "",
                 model = model ?: "",
                 latestLocation = updatedLocation,
-                callsign = callsign
+                callsign = resolvedCallsign,
+                hardwareId = hardwareId ?: ""
             )).copy(
                 latestLocation = updatedLocation,
                 heartbeatStatus = "online",
                 lastHeartbeat = currentUtc,
                 model = model ?: existing?.model ?: "",
-                callsign = callsign
+                callsign = resolvedCallsign,
+                hardwareId = hardwareId ?: existing?.hardwareId ?: ""
             )
 
             val updated = current.toMutableMap()
@@ -1101,8 +1262,11 @@ class DeviceRepositoryImpl(
      */
     private fun createMinimalDevice(event: DeviceUpdateEvent.DeviceConnected): Device {
         val model = event.model ?: ""
-        val uniqueKey = if (model.isNotBlank()) "${event.deviceId}_$model" else event.deviceId
-        val callsign = getOrCreateCallsign(uniqueKey, model)
+        val hwCallsign = Regex("""\((HOST-[A-Za-z0-9_-]+)\)""").find(event.deviceName ?: "")?.groupValues?.get(1) ?: ""
+        val uniqueKey = if (hwCallsign.isNotBlank()) "${event.deviceId}_$hwCallsign"
+            else if (model.isNotBlank()) "${event.deviceId}_$model"
+            else event.deviceId
+        val callsign = hwCallsign.ifBlank { getOrCreateCallsign(uniqueKey, model) }
         return Device(
             deviceId = event.deviceId,
             connectionId = "",

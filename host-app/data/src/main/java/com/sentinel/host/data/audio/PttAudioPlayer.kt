@@ -8,6 +8,7 @@ import android.media.AudioTrack
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
@@ -102,7 +103,7 @@ class PttAudioPlayer @Inject constructor(
         Log.i(TAG, "PTT loudspeaker playback session initiated")
     }
 
-    private fun runPlaybackLoop() {
+    private suspend fun runPlaybackLoop() {
         val minBufferSize = AudioTrack.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
         val bufferSize = (minBufferSize * 4).coerceAtLeast(8192)
 
@@ -149,21 +150,12 @@ class PttAudioPlayer @Inject constructor(
 
         // Sequential consumption loop confined strictly to Sentinel-PttPlayerThread
         while (isSessionActive.get() && playerScope.isActive) {
-            val chunk = audioChannel.tryReceive().getOrNull()
-            if (chunk != null) {
-                if (track.state == AudioTrack.STATE_INITIALIZED) {
-                    try {
-                        track.write(chunk, 0, chunk.size, AudioTrack.WRITE_BLOCKING)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "AudioTrack write exception: ${e.message}")
-                        break
-                    }
-                }
-            } else {
-                // Channel empty; brief yield to prevent busy waiting while staying responsive
+            val chunk = audioChannel.receiveCatching().getOrNull() ?: break
+            if (track.state == AudioTrack.STATE_INITIALIZED) {
                 try {
-                    Thread.sleep(10)
-                } catch (e: InterruptedException) {
+                    track.write(chunk, 0, chunk.size, AudioTrack.WRITE_BLOCKING)
+                } catch (e: Exception) {
+                    Log.w(TAG, "AudioTrack write exception: ${e.message}")
                     break
                 }
             }
@@ -230,7 +222,7 @@ class PttAudioPlayer @Inject constructor(
 
     private fun resetWatchdog() {
         watchdogJob?.cancel()
-        watchdogJob = playerScope.launch {
+        watchdogJob = CoroutineScope(Dispatchers.Default).launch {
             delay(INACTIVITY_TIMEOUT_MS)
             if (isSessionActive.get()) {
                 Log.i(TAG, "PTT inactivity watchdog timed out ($INACTIVITY_TIMEOUT_MS ms) — closing session")

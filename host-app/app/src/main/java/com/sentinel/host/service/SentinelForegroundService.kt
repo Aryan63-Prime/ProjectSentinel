@@ -56,6 +56,8 @@ class SentinelForegroundService : Service() {
         const val JWT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkZXZpY2VfaWQiOiJIT1NULTAwMSIsImlzcyI6InByb2plY3Qtc2VudGluZWwiLCJzdWIiOiJIT1NULTAwMSIsImV4cCI6MTgxNTg5MDcwMywiaWF0IjoxNzg0MzU0NzAzfQ.l_yJzhLSY0Kuhudn6-5W81pyv77NBZkDsZVdXgWKeSA"
 
         const val EXTRA_FROM_BOOT = "extra_from_boot"
+        const val ACTION_START = "com.sentinel.host.action.START"
+        const val ACTION_WAKE = "com.sentinel.host.action.WAKE"
 
         fun Start(context: Context, isFromBoot: Boolean = false) {
             val intent = Intent(context, SentinelForegroundService::class.java).apply {
@@ -78,6 +80,7 @@ class SentinelForegroundService : Service() {
     @Inject lateinit var fallDetector: com.sentinel.host.data.device.FallDetector
     @Inject lateinit var systemInfoProvider: com.sentinel.host.data.device.SystemInfoProvider
     @Inject lateinit var deviceRepository: com.sentinel.host.domain.repository.DeviceRepository
+    @Inject lateinit var sessionManager: com.sentinel.host.domain.session.SessionManager
 
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
         Log.e(TAG, "Unhandled exception in Sentinel service scope: ${throwable.message}", throwable)
@@ -100,6 +103,22 @@ class SentinelForegroundService : Service() {
         createNotificationChannel()
         registerReceiver(locationReceiver, IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION))
         SentinelWatchdogWorker.schedule(this)
+
+        // Query and cache Firebase Cloud Messaging token for Push-to-Wake
+        try {
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().token
+                .addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        val token = task.result
+                        Log.i(TAG, "Proactively retrieved FCM registration token: $token")
+                        sessionManager.saveFcmToken(token)
+                    } else {
+                        Log.w(TAG, "Failed to retrieve FCM token: ${task.exception?.message}")
+                    }
+                }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error querying FirebaseMessaging token: ${e.message}")
+        }
 
         // Fall detector listener setup (dormant by default to prevent false sirens)
         fallDetector.onEmergencyTriggered = { peakG ->
@@ -129,6 +148,9 @@ class SentinelForegroundService : Service() {
                 }
             }
         }
+        // Activate fall monitoring (silent covert alarm by default)
+        fallDetector.enable(soundAlarm = false)
+
 
         serviceScope.launch {
             webSocketDataSource.textMessages.collect { rawText ->
@@ -140,6 +162,13 @@ class SentinelForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == "com.sentinel.host.SIMULATE_FALL") {
+            val impact = intent.getFloatExtra("impactG", 4.8f)
+            Log.w(TAG, "Triggering SIMULATE_FALL with impact $impact g")
+            fallDetector.simulateFall(impact)
+            return START_STICKY
+        }
+
         val isFromBoot = intent?.getBooleanExtra(EXTRA_FROM_BOOT, false) == true
         Log.i(TAG, "SentinelForegroundService starting (flags=$flags, startId=$startId, isFromBoot=$isFromBoot)")
 

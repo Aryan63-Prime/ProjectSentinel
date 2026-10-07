@@ -22,9 +22,14 @@ type Router interface {
 	BroadcastToAdmins(data []byte)
 }
 
+type FcmWaker interface {
+	WakeDevice(ctx context.Context, deviceID string) (string, error)
+}
+
 type Handler struct {
 	finder SessionFinder
 	router Router
+	fcm    FcmWaker
 }
 
 func NewHandler(finder SessionFinder, router Router) *Handler {
@@ -32,6 +37,11 @@ func NewHandler(finder SessionFinder, router Router) *Handler {
 		finder: finder,
 		router: router,
 	}
+}
+
+// SetFcmWaker assigns an FCM waker to auto-ping sleeping devices.
+func (h *Handler) SetFcmWaker(w FcmWaker) {
+	h.fcm = w
 }
 
 // HandleCommand routes a COMMAND message from an Admin to the target Host device.
@@ -47,7 +57,12 @@ func (h *Handler) HandleCommand(ctx context.Context, session Session, msg protoc
 
 	hostConnID, ok := h.finder.GetConnectionIDByDeviceID(payload.TargetDeviceID)
 	if !ok {
-		return protocol.NewError(msg.Sequence, 404, "Target host device not found or offline"), nil
+		if h.fcm != nil {
+			go func() {
+				_, _ = h.fcm.WakeDevice(context.Background(), payload.TargetDeviceID)
+			}()
+		}
+		return protocol.NewError(msg.Sequence, 404, "Target host device not found or offline (FCM wake ping sent)"), nil
 	}
 
 	rawMsg, err := json.Marshal(msg)

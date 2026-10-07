@@ -12,6 +12,8 @@ interface SessionManager {
     fun clearToken()
     fun saveServerUrl(url: String)
     fun getServerUrl(): String?
+    fun saveFcmToken(token: String) {}
+    fun getFcmToken(): String? = null
     fun hasSession(): Boolean
     fun clear()
 }

@@ -122,12 +122,14 @@ object NetworkModule {
         connectionRepository: ConnectionRepository,
         messageSerializer: MessageSerializer,
         sequenceGenerator: SequenceGenerator,
-        sessionManager: SessionManager
+        sessionManager: SessionManager,
+        hardwareInfoProvider: com.sentinel.host.data.device.HardwareInfoProvider
     ): DeviceRepository {
         return DeviceRepositoryImpl(
             connectionRepository, messageSerializer, sequenceGenerator,
             sessionManager,
-            appVersion = "1.0.0"
+            appVersion = "1.0.0",
+            hardwareInfoProvider = hardwareInfoProvider
         )
     }
 

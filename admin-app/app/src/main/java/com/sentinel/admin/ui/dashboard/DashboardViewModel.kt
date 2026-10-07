@@ -35,6 +35,7 @@ class DashboardViewModel @Inject constructor(
     init {
         loadDevices()
         observeLiveUpdates()
+        observeEmergencyAlerts()
     }
 
     /**
@@ -53,6 +54,18 @@ class DashboardViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private fun observeEmergencyAlerts() {
+        viewModelScope.launch {
+            deviceRepository.emergencyAlert.collect { alert ->
+                _uiState.update { it.copy(emergencyAlert = alert) }
+            }
+        }
+    }
+
+    fun dismissEmergencyAlert() {
+        deviceRepository.dismissEmergencyAlert()
     }
 
     // ============================================================

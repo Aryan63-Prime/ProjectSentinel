@@ -1,22 +1,8 @@
 package com.sentinel.admin.domain.model
 
 /**
- * A monitored device as returned by the Admin REST API.
- *
- * Maps to the JSON response from GET /devices and GET /devices/{deviceId}.
- *
- * @property deviceId Permanent device identifier (e.g., "HOST-0001").
- * @property connectionId Ephemeral connection identifier (changes on reconnect).
- * @property authenticated Whether the device has completed AUTH.
- * @property registered Whether the device has completed REGISTER.
- * @property registrationState Human-readable registration state.
- * @property heartbeatStatus "online" or "offline".
- * @property connectedAt ISO-8601 timestamp of when the device connected.
- * @property lastHeartbeat ISO-8601 timestamp of last heartbeat.
- * @property deviceName User-friendly device name (e.g., "Pixel 9").
- * @property appVersion Host application version.
- * @property model Device hardware model.
- * @property latestLocation Most recent location, or null.
+ * A monitored device as returned by the Admin REST API and realtime WebSocket feeds.
+ * Supports hardware-level identity, deterministic callsign resolution, and multi-device segregation.
  */
 data class Device(
     val deviceId: String,
@@ -31,17 +17,26 @@ data class Device(
     val appVersion: String,
     val model: String,
     val latestLocation: DeviceLocation?,
-    val callsign: String = ""
+    val callsign: String = "",
+    val hardwareId: String = ""
 ) {
+    /** Resolved callsign prioritizing explicit callsign, then hardware callsign extracted from deviceName. */
+    val resolvedCallsign: String
+        get() = callsign.ifBlank {
+            Regex("""\((HOST-[A-Za-z0-9_-]+)\)""").find(deviceName)?.groupValues?.get(1) ?: ""
+        }
+
     /** Unique identity for UI rendering and tracking across sessions when devices share a deviceId token. */
     val uniqueKey: String
         get() = when {
             model.isNotBlank() && model != "Unknown" -> "${deviceId}_${model}"
+            hardwareId.isNotBlank() -> "${deviceId}_${hardwareId}"
+            resolvedCallsign.isNotBlank() -> "${deviceId}_${resolvedCallsign}"
             connectionId.isNotBlank() -> "${deviceId}_${connectionId}"
             else -> deviceId
         }
 
-    /** Display identity: sequential fleet callsign (HOST-01, HOST-02...) if assigned, otherwise deviceId. */
+    /** Display identity: hardware fleet callsign (HOST-VIVO-CFAE...) if assigned, otherwise deviceId. */
     val displayId: String
-        get() = callsign.ifBlank { deviceId }
+        get() = resolvedCallsign.ifBlank { deviceId }
 }

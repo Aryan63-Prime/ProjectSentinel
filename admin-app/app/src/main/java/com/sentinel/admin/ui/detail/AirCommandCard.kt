@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.ListAlt
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhoneAndroid
@@ -53,6 +54,7 @@ fun AirCommandCard(
     onExecuteShellClick: () -> Unit,
     onCaptureScreenshotClick: () -> Unit = {},
     onLockDeviceClick: () -> Unit = {},
+    onArmGeofenceClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -180,6 +182,14 @@ fun AirCommandCard(
                     isDestructive = true,
                     modifier = Modifier.weight(1f)
                 )
+                TacticalCommandButton(
+                    icon = Icons.Default.LocationOn,
+                    label = "Geofence 100m",
+                    onClick = onArmGeofenceClick,
+                    enabled = isOnline,
+                    accentColor = Color(0xFF10B981),
+                    modifier = Modifier.weight(1f)
+                )
             }
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -207,7 +217,7 @@ fun AirCommandCard(
                 )
                 TacticalCommandButton(
                     icon = Icons.Default.Description,
-                    label = "App Logs",
+                    label = "SMS Logs",
                     onClick = onFetchLogsClick,
                     enabled = isOnline,
                     accentColor = Color(0xFFF59E0B),

@@ -28,6 +28,8 @@ local.properties
 
 # Temporary dumps & screenshots
 /*.png
+/*.jpg
+/*.jpeg
 /*.xml
 
 # === Go ===
@@ -50,3 +52,4 @@ node_modules/
 *.keystore
 *.jks
 *.p12
+server/serviceAccountKey.json

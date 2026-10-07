@@ -1,6 +1,9 @@
 package gateway
 
-import "sync"
+import (
+	"strings"
+	"sync"
+)
 
 type Manager struct {
 	mu sync.RWMutex
@@ -76,7 +79,12 @@ func (m *Manager) SnapshotByDeviceID(deviceID string) (SessionSnapshot, bool) {
 			uniqueKey = snapshot.DeviceID + "_" + snapshot.Model
 		}
 
-		if snapshot.DeviceID == deviceID || snapshot.ConnectionID == deviceID || uniqueKey == deviceID {
+		matches := snapshot.DeviceID == deviceID ||
+			snapshot.ConnectionID == deviceID ||
+			uniqueKey == deviceID ||
+			(deviceID != "" && strings.Contains(snapshot.DeviceName, deviceID))
+
+		if matches {
 			if snapshot.Registered {
 				if !foundRegistered || snapshot.ConnectedAt.After(registered.ConnectedAt) {
 					registered = snapshot

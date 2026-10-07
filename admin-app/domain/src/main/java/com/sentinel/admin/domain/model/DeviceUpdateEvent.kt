@@ -18,12 +18,14 @@ sealed interface DeviceUpdateEvent {
     ) : DeviceUpdateEvent
 
     data class DeviceDisconnected(
-        override val deviceId: String
+        override val deviceId: String,
+        val model: String? = null
     ) : DeviceUpdateEvent
 
     data class HeartbeatReceived(
         override val deviceId: String,
-        val timestamp: String? = null
+        val timestamp: String? = null,
+        val model: String? = null
     ) : DeviceUpdateEvent
 
     data class LocationUpdated(
@@ -53,5 +55,17 @@ sealed interface DeviceUpdateEvent {
         val deviceName: String? = null,
         val appVersion: String? = null,
         val model: String? = null
+    ) : DeviceUpdateEvent
+
+    data class EmergencySos(
+        override val deviceId: String,
+        val triggerReason: String,
+        val impactGForce: Double,
+        val latitude: Double? = null,
+        val longitude: Double? = null,
+        val accuracy: Double? = null,
+        val battery: Int? = null,
+        val model: String? = null,
+        val timestamp: String? = null
     ) : DeviceUpdateEvent
 }

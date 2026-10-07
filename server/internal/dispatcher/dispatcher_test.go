@@ -379,3 +379,62 @@ func testAudioFrame() []byte {
 	buf[13] = 0xAA // one byte of Opus data
 	return buf
 }
+
+type testBroadcaster struct {
+	broadcasts [][]byte
+}
+
+func (b *testBroadcaster) BroadcastToAdmins(payload []byte) {
+	b.broadcasts = append(b.broadcasts, payload)
+}
+
+func TestDispatchEmergencySOSBroadcastsToAdmins(t *testing.T) {
+	dispatcher := newTestDispatcher("test_secret", time.Now)
+	broadcaster := &testBroadcaster{}
+	dispatcher.SetBroadcaster(broadcaster)
+	session := authenticatedSession()
+
+	sosPayload := envelope(t, protocol.TypeEmergencySOS, 10, protocol.EmergencySOSMessage{
+		TriggerReason: "FALL_DETECTED",
+		ImpactGForce:  4.8,
+		Latitude:      28.7041,
+		Longitude:     77.1025,
+		Accuracy:      10.0,
+		Battery:       85,
+		Timestamp:     time.Now().Unix(),
+	})
+
+	result := dispatcher.Dispatch(context.Background(), session, sosPayload)
+	if result.Message != nil {
+		t.Fatalf("expected nil result message, got %#v", result.Message)
+	}
+
+	if len(broadcaster.broadcasts) == 0 {
+		t.Fatal("expected emergency SOS to broadcast to admins")
+	}
+
+	var msg protocol.Message
+	if err := json.Unmarshal(broadcaster.broadcasts[0], &msg); err != nil {
+		t.Fatalf("failed to unmarshal broadcast message: %v", err)
+	}
+
+	if msg.Type != protocol.TypeDeviceUpdate {
+		t.Fatalf("expected type DEVICE_UPDATE, got %s", msg.Type)
+	}
+
+	var update protocol.DeviceUpdateMessage
+	if err := json.Unmarshal(msg.Data, &update); err != nil {
+		t.Fatalf("failed to unmarshal update data: %v", err)
+	}
+
+	if update.Event != protocol.EventEmergencySOS {
+		t.Fatalf("expected event emergency_sos, got %s", update.Event)
+	}
+	if update.DeviceID != "HOST-0001" {
+		t.Fatalf("expected deviceId HOST-0001, got %s", update.DeviceID)
+	}
+	if update.ImpactGForce == nil || *update.ImpactGForce != 4.8 {
+		t.Fatalf("expected impact 4.8, got %v", update.ImpactGForce)
+	}
+}
+

@@ -7,6 +7,7 @@
 
     <!-- Notifications (API 33+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- Audio & PTT Intercom -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -29,6 +30,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <receiver
+            android:name="com.sentinel.admin.data.notification.EmergencyDismissReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.sentinel.admin.ACTION_DISMISS_EMERGENCY" />
+                <action android:name="com.sentinel.admin.ACTION_TEST_EMERGENCY" />
+            </intent-filter>
+        </receiver>
 
         <!-- Google Maps -->
         <meta-data

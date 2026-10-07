@@ -1,6 +1,7 @@
 package com.sentinel.admin.data.remote.api
 
 import retrofit2.http.GET
+import retrofit2.http.POST
 import retrofit2.http.Header
 import retrofit2.http.Path
 
@@ -28,4 +29,13 @@ interface DeviceApi {
         @Header("Authorization") authorization: String,
         @Path("deviceId") deviceId: String
     ): DeviceDto
+
+    /**
+     * POST /devices/{deviceId}/wake — Sends a high-priority FCM wakeup ping.
+     */
+    @POST("/devices/{deviceId}/wake")
+    suspend fun wakeDevice(
+        @Header("Authorization") authorization: String,
+        @Path("deviceId") deviceId: String
+    ): WakeResponseDto
 }

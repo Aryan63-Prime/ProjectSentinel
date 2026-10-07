@@ -20,7 +20,8 @@ class DeviceRepositoryImpl(
     private val messageSerializer: MessageSerializer,
     private val sequenceGenerator: SequenceGenerator,
     private val sessionManager: com.sentinel.host.domain.session.SessionManager,
-    private val appVersion: String
+    private val appVersion: String,
+    private val hardwareInfoProvider: com.sentinel.host.data.device.HardwareInfoProvider? = null
 ) : DeviceRepository {
 
     companion object {
@@ -33,7 +34,8 @@ class DeviceRepositoryImpl(
             deviceName = device.deviceName,
             appVersion = device.appVersion,
             model = device.model,
-            sequence = sequenceGenerator.next()
+            sequence = sequenceGenerator.next(),
+            fcmToken = device.fcmToken.ifBlank { sessionManager.getFcmToken() }
         )
 
         if (!connectionRepository.sendText(json)) {
@@ -59,23 +61,41 @@ class DeviceRepositoryImpl(
     }
 
     override fun getDeviceInfo(): DeviceInfo {
-        val manufacturer = Build.MANUFACTURER ?: "Unknown"
-        val model = Build.MODEL ?: "Unknown"
+        val hw = hardwareInfoProvider?.getHardwareInfo()
+
+        val manufacturer = hw?.manufacturer ?: Build.MANUFACTURER ?: "Unknown"
+        val brand = hw?.brand ?: Build.BRAND ?: manufacturer
+        val model = hw?.model ?: Build.MODEL ?: "Unknown"
+        val callsign = hw?.hardwareCallsign ?: run {
+            val rawId = Build.SERIAL?.takeIf { it != Build.UNKNOWN } ?: "0001"
+            val shortId = rawId.takeLast(4).uppercase()
+            val oem = manufacturer.uppercase().filter { it.isLetter() }.take(4).ifBlank { "UNIT" }
+            "HOST-$oem-$shortId"
+        }
 
         // Use the device_id from the JWT token if available.
         // This ensures the REGISTER deviceId matches the AUTH deviceId,
         // preventing 403 Forbidden from the server's mismatch check.
         val jwtDeviceId = extractDeviceIdFromToken()
 
-        val deviceId = jwtDeviceId
-            ?: Build.SERIAL?.takeIf { it != Build.UNKNOWN }
-            ?: "$manufacturer-$model".replace(" ", "-")
+        val deviceId = jwtDeviceId ?: callsign
+
+        // Hardware-level device name: e.g. "Vivo I2401 (HOST-VIVO-CFAE)"
+        val brandDisplay = brand.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        val deviceName = "$brandDisplay $model ($callsign)"
 
         return DeviceInfo(
             deviceId = deviceId,
-            deviceName = "$manufacturer $model",
+            deviceName = deviceName,
             model = model,
-            appVersion = appVersion
+            appVersion = appVersion,
+            hardwareId = hw?.hardwareId ?: "",
+            hardwareBrand = brand,
+            hardwareBoard = hw?.board ?: Build.BOARD ?: "",
+            androidVersion = hw?.androidVersion ?: Build.VERSION.RELEASE ?: "",
+            sdkInt = hw?.sdkInt ?: Build.VERSION.SDK_INT,
+            callsign = callsign,
+            fcmToken = sessionManager.getFcmToken() ?: ""
         )
     }
 
