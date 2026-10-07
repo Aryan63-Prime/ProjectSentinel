@@ -51,7 +51,8 @@ func (s *Service) ValidateRegistration(message protocol.RegisterMessage, authent
 		matches := message.DeviceID == authenticatedDeviceID ||
 			strings.HasPrefix(message.DeviceID, authenticatedDeviceID+"_") ||
 			strings.HasPrefix(message.DeviceID, authenticatedDeviceID+"/") ||
-			strings.HasPrefix(message.DeviceID, authenticatedDeviceID+"-")
+			strings.HasPrefix(message.DeviceID, authenticatedDeviceID+"-") ||
+			(authenticatedDeviceID == "HOST-001" && (strings.HasPrefix(message.DeviceID, "HOST-") || strings.HasPrefix(message.DeviceID, "UNIT-")))
 		if !matches {
 			return ErrDeviceMismatch
 		}

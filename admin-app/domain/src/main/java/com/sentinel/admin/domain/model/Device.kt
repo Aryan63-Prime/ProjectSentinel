@@ -29,6 +29,7 @@ data class Device(
     /** Unique identity for UI rendering and tracking across sessions when devices share a deviceId token. */
     val uniqueKey: String
         get() = when {
+            deviceId.isNotBlank() && deviceId != "HOST-001" && (deviceId.startsWith("HOST-") || deviceId.contains("-")) -> deviceId
             model.isNotBlank() && model != "Unknown" -> "${deviceId}_${model}"
             hardwareId.isNotBlank() -> "${deviceId}_${hardwareId}"
             resolvedCallsign.isNotBlank() -> "${deviceId}_${resolvedCallsign}"

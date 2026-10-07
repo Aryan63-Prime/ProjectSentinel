@@ -56,6 +56,7 @@ class DashboardViewModelTest {
 
         override fun dismissEmergencyAlert() {}
         override fun triggerTestEmergencyAlert(alert: com.sentinel.admin.domain.model.EmergencyAlert) {}
+        override suspend fun wakeDevice(deviceId: String): Result<Boolean> = Result.success(true)
 
         override suspend fun getDevices(): Result<List<Device>> {
             callCount++

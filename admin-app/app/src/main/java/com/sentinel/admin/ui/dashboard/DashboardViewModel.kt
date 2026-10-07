@@ -45,13 +45,13 @@ class DashboardViewModel @Inject constructor(
     private fun observeLiveUpdates() {
         viewModelScope.launch {
             deviceRepository.devices.collect { deviceMap ->
-                if (deviceMap.isNotEmpty()) {
-                    val deduplicated = deviceMap.values.distinctBy { it.uniqueKey }
+                    val deduplicated = deviceMap.values
+                        .sortedWith(compareByDescending<Device> { it.heartbeatStatus == "online" }.thenByDescending { it.lastHeartbeat })
+                        .distinctBy { it.resolvedCallsign.ifBlank { it.uniqueKey } }
                     _uiState.update {
                         it.copy(devices = deduplicated)
                     }
                     applyFilterAndSort()
-                }
             }
         }
     }
@@ -80,7 +80,9 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             deviceRepository.getDevices()
                 .onSuccess { devices ->
-                    val deduplicated = devices.distinctBy { it.uniqueKey }
+                    val deduplicated = devices
+                        .sortedWith(compareByDescending<Device> { it.heartbeatStatus == "online" }.thenByDescending { it.lastHeartbeat })
+                        .distinctBy { it.resolvedCallsign.ifBlank { it.uniqueKey } }
                     _uiState.update {
                         it.copy(
                             devices = deduplicated,
@@ -111,7 +113,9 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             deviceRepository.getDevices()
                 .onSuccess { devices ->
-                    val deduplicated = devices.distinctBy { it.uniqueKey }
+                    val deduplicated = devices
+                        .sortedWith(compareByDescending<Device> { it.heartbeatStatus == "online" }.thenByDescending { it.lastHeartbeat })
+                        .distinctBy { it.resolvedCallsign.ifBlank { it.uniqueKey } }
                     _uiState.update {
                         it.copy(
                             devices = deduplicated,

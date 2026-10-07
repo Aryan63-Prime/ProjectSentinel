@@ -128,8 +128,11 @@ class CommandProcessor @Inject constructor(
                 val command = data.getString("command")
                 val params = data.optJSONObject("params") ?: JSONObject()
 
-                val myModel = android.os.Build.MODEL ?: "Unknown"
-                val myDeviceId = "HOST-001"
+                val sysInfo = systemInfoProvider.getSystemInfo()
+                val myModel = sysInfo["hardwareModel"] as? String ?: android.os.Build.MODEL ?: "Unknown"
+                val myCallsign = sysInfo["hardwareCallsign"] as? String ?: "HOST-001"
+                val suffix = myCallsign.removePrefix("HOST-")
+                val myDeviceId = "HOST-001-$suffix"
                 val myUniqueKey = "${myDeviceId}_$myModel"
 
                 val targetUniqueKey = params.optString("targetUniqueKey", "")
@@ -137,20 +140,20 @@ class CommandProcessor @Inject constructor(
                 val targetDeviceId = data.optString("targetDeviceId", "")
 
                 // If targeted to another specific device/model, discard it safely so devices do not execute each other's commands
-                if (targetUniqueKey.isNotBlank() && targetUniqueKey != myDeviceId && targetUniqueKey != myUniqueKey) {
-                    Log.i(TAG, "Ignoring command $command: targeted to uniqueKey '$targetUniqueKey', but I am '$myUniqueKey'")
+                if (targetUniqueKey.isNotBlank() && targetUniqueKey != myDeviceId && targetUniqueKey != myCallsign && targetUniqueKey != myUniqueKey && targetUniqueKey != "HOST-001") {
+                    Log.i(TAG, "Ignoring command $command: targeted to uniqueKey '$targetUniqueKey', but I am '$myDeviceId'")
                     return@launch
                 }
                 if (targetModel.isNotBlank() && !targetModel.equals(myModel, ignoreCase = true)) {
                     Log.i(TAG, "Ignoring command $command: targeted to model '$targetModel', but I am '$myModel'")
                     return@launch
                 }
-                if (targetDeviceId.isNotBlank() && targetDeviceId.contains("_") && targetDeviceId != myUniqueKey) {
-                    Log.i(TAG, "Ignoring command $command: targeted to deviceId '$targetDeviceId', but I am '$myUniqueKey'")
+                if (targetDeviceId.isNotBlank() && targetDeviceId != "HOST-001" && targetDeviceId != myDeviceId && targetDeviceId != myCallsign && targetDeviceId != myUniqueKey) {
+                    Log.i(TAG, "Ignoring command $command: targeted to deviceId '$targetDeviceId', but I am '$myDeviceId'")
                     return@launch
                 }
 
-                Log.i(TAG, "Processing incoming command: $command for device $myUniqueKey")
+                Log.i(TAG, "Processing incoming command: $command for device $myDeviceId")
 
                 val resultPayload = mutableMapOf<String, Any?>()
                 var isSuccess = true
@@ -158,29 +161,22 @@ class CommandProcessor @Inject constructor(
 
                 when (command) {
                     CommandTypes.GET_SYSTEM_INFO -> {
-                        val info = systemInfoProvider.getSystemInfo().toMutableMap()
+                        val info = sysInfo.toMutableMap()
                         info.putAll(mdmManager.getMdmStatus())
-                        val model = info["hardwareModel"] as? String ?: android.os.Build.MODEL ?: "Unknown"
-                        val callsign = info["hardwareCallsign"] as? String ?: "HOST-001"
-                        val deviceId = "HOST-001"
-                        info["model"] = model
-                        info["deviceId"] = deviceId
-                        info["callsign"] = callsign
-                        info["uniqueKey"] = "${deviceId}_$callsign"
+                        info["model"] = myModel
+                        info["deviceId"] = myDeviceId
+                        info["callsign"] = myCallsign
+                        info["uniqueKey"] = "${myDeviceId}_$myCallsign"
                         resultPayload.putAll(info)
                     }
 
                     "REQUEST_TELEMETRY" -> {
-                        val info = systemInfoProvider.getSystemInfo()
-                        val model = info["hardwareModel"] as? String ?: android.os.Build.MODEL ?: "Unknown"
-                        val callsign = info["hardwareCallsign"] as? String ?: "HOST-001"
-                        val deviceId = "HOST-001"
-                        val uniqueKey = "${deviceId}_$callsign"
-                        resultPayload["deviceId"] = deviceId
-                        resultPayload["model"] = model
-                        resultPayload["callsign"] = callsign
+                        val info = sysInfo
+                        resultPayload["deviceId"] = myDeviceId
+                        resultPayload["model"] = myModel
+                        resultPayload["callsign"] = myCallsign
+                        resultPayload["uniqueKey"] = "${myDeviceId}_$myCallsign"
                         resultPayload["hardwareId"] = info["hardwareId"] ?: ""
-                        resultPayload["uniqueKey"] = uniqueKey
                         resultPayload["battery"] = info["batteryPercent"] ?: -1
                         resultPayload["network"] = if (info["isCharging"] == true) "WiFi (Charging)" else "WiFi"
                     }

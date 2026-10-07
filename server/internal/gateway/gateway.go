@@ -160,7 +160,11 @@ func (g *Gateway) readLoop(client *Client) {
 	defer func() {
 		// Broadcast disconnect before removing session
 		if client.Session != nil && client.Session.IsRegistered() {
-			g.dispatcher.BroadcastDisconnect(client.Session.AuthenticatedDeviceID(), client.Session.Model())
+			disconnID := client.Session.DeviceID()
+			if disconnID == "" {
+				disconnID = client.Session.AuthenticatedDeviceID()
+			}
+			g.dispatcher.BroadcastDisconnect(disconnID, client.Session.Model())
 		}
 
 		client.Cancel()

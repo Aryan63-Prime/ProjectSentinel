@@ -71,6 +71,7 @@ class DeviceDetailViewModelTest {
 
         override fun dismissEmergencyAlert() {}
         override fun triggerTestEmergencyAlert(alert: com.sentinel.admin.domain.model.EmergencyAlert) {}
+        override suspend fun wakeDevice(deviceId: String): Result<Boolean> = Result.success(true)
 
         override suspend fun getDevice(deviceId: String): Result<Device> {
             getDeviceCallCount++

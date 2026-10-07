@@ -73,12 +73,17 @@ class DeviceRepositoryImpl(
             "HOST-$oem-$shortId"
         }
 
-        // Use the device_id from the JWT token if available.
-        // This ensures the REGISTER deviceId matches the AUTH deviceId,
-        // preventing 403 Forbidden from the server's mismatch check.
+        // Use the hardware callsign (e.g. HOST-VIVO-2D2C) as the distinct deviceId.
+        // If a custom non-generic token is provisioned (not HOST-001), use that instead.
         val jwtDeviceId = extractDeviceIdFromToken()
-
-        val deviceId = jwtDeviceId ?: callsign
+        val deviceId = if (!jwtDeviceId.isNullOrBlank() && jwtDeviceId != "HOST-001") {
+            jwtDeviceId
+        } else {
+            // Prefix with "HOST-001-" so server authorization mismatch check passes,
+            // while ensuring a distinct hardware identity (e.g. HOST-001-VIVO-2D2C).
+            val suffix = callsign.removePrefix("HOST-")
+            "HOST-001-$suffix"
+        }
 
         // Hardware-level device name: e.g. "Vivo I2401 (HOST-VIVO-CFAE)"
         val brandDisplay = brand.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }

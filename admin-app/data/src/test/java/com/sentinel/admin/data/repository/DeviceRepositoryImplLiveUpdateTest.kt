@@ -49,6 +49,8 @@ class DeviceRepositoryImplLiveUpdateTest {
             DevicesResponse(emptyList())
         override suspend fun getDevice(authorization: String, deviceId: String): DeviceDto =
             throw NotImplementedError("not used in live update tests")
+        override suspend fun wakeDevice(authorization: String, deviceId: String): com.sentinel.admin.data.remote.api.WakeResponseDto =
+            com.sentinel.admin.data.remote.api.WakeResponseDto(success = true, deviceId = deviceId, messageId = "test-msg-id")
     }
 
     @Before
