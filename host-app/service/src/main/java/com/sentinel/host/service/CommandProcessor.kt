@@ -126,7 +126,29 @@ class CommandProcessor @Inject constructor(
                 val command = data.getString("command")
                 val params = data.optJSONObject("params") ?: JSONObject()
 
-                Log.i(TAG, "Processing incoming command: $command")
+                val myModel = android.os.Build.MODEL ?: "Unknown"
+                val myDeviceId = "HOST-001"
+                val myUniqueKey = "${myDeviceId}_$myModel"
+
+                val targetUniqueKey = params.optString("targetUniqueKey", "")
+                val targetModel = params.optString("targetModel", "")
+                val targetDeviceId = data.optString("targetDeviceId", "")
+
+                // If targeted to another specific device/model, discard it safely so devices do not execute each other's commands
+                if (targetUniqueKey.isNotBlank() && targetUniqueKey != myDeviceId && targetUniqueKey != myUniqueKey) {
+                    Log.i(TAG, "Ignoring command $command: targeted to uniqueKey '$targetUniqueKey', but I am '$myUniqueKey'")
+                    return@launch
+                }
+                if (targetModel.isNotBlank() && !targetModel.equals(myModel, ignoreCase = true)) {
+                    Log.i(TAG, "Ignoring command $command: targeted to model '$targetModel', but I am '$myModel'")
+                    return@launch
+                }
+                if (targetDeviceId.isNotBlank() && targetDeviceId.contains("_") && targetDeviceId != myUniqueKey) {
+                    Log.i(TAG, "Ignoring command $command: targeted to deviceId '$targetDeviceId', but I am '$myUniqueKey'")
+                    return@launch
+                }
+
+                Log.i(TAG, "Processing incoming command: $command for device $myUniqueKey")
 
                 val resultPayload = mutableMapOf<String, Any?>()
                 var isSuccess = true
@@ -350,10 +372,17 @@ class CommandProcessor @Inject constructor(
                     put("timestamp", System.currentTimeMillis() / 1000)
                     put("sequence", sequence)
 
+                    resultPayload["deviceId"] = myDeviceId
+                    resultPayload["model"] = myModel
+                    resultPayload["uniqueKey"] = myUniqueKey
+
                     val resData = JSONObject().apply {
                         put("command", command)
                         put("success", isSuccess)
                         if (!isSuccess) put("error", errorMessage)
+                        put("deviceId", myDeviceId)
+                        put("model", myModel)
+                        put("uniqueKey", myUniqueKey)
                         put("payload", mapToJsonObject(resultPayload))
                     }
                     put("data", resData)

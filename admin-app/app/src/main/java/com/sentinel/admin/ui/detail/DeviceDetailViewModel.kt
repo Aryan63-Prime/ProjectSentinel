@@ -51,7 +51,9 @@ class DeviceDetailViewModel @Inject constructor(
         ?: throw IllegalArgumentException("deviceId is required")
 
     private val targetServerDeviceId: String
-        get() = _uiState.value.device?.deviceId ?: if (deviceId.contains("_")) deviceId.substringBefore("_") else deviceId
+        get() = _uiState.value.device?.connectionId?.takeIf { it.isNotBlank() }
+            ?: _uiState.value.device?.uniqueKey?.takeIf { it.isNotBlank() }
+            ?: deviceId
 
     private val _uiState = MutableStateFlow(DeviceDetailUiState())
     val uiState: StateFlow<DeviceDetailUiState> = _uiState.asStateFlow()
@@ -395,7 +397,21 @@ class DeviceDetailViewModel @Inject constructor(
                     val success = data.optBoolean("success", false)
                     val payload = data.optJSONObject("payload") ?: org.json.JSONObject()
 
-                    android.util.Log.i("Sentinel:AdminCmd", "Received COMMAND_RESULT for $command (success=$success)")
+                    // Isolate results so actions from other devices do not cross-contaminate this detail screen
+                    val resModel = payload.optString("model", data.optString("model", ""))
+                    val resUniqueKey = payload.optString("uniqueKey", data.optString("uniqueKey", ""))
+                    val currentDev = _uiState.value.device
+                    val myModel = currentDev?.model ?: if (deviceId.contains("_")) deviceId.substringAfter("_") else ""
+                    val myKey = currentDev?.uniqueKey ?: deviceId
+
+                    if (resUniqueKey.isNotBlank() && myKey.isNotBlank() && resUniqueKey != myKey && !myKey.contains(resUniqueKey) && !resUniqueKey.contains(myKey)) {
+                        android.util.Log.d("Sentinel:AdminCmd", "Filtered out $command result from other device '$resUniqueKey' (screen is for '$myKey')")
+                        return@collect
+                    }
+                    if (resModel.isNotBlank() && myModel.isNotBlank() && !resModel.equals(myModel, ignoreCase = true)) {
+                        android.util.Log.d("Sentinel:AdminCmd", "Filtered out $command result from other model '$resModel' (screen is for '$myModel')")
+                        return@collect
+                    }
 
                     if (!success) {
                         val errorMsg = data.optString("error", "Unknown error")
