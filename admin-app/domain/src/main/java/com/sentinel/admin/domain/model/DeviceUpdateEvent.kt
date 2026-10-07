@@ -32,17 +32,20 @@ sealed interface DeviceUpdateEvent {
         val longitude: Double,
         val accuracy: Double? = null,
         val battery: Int? = null,
-        val network: String? = null
+        val network: String? = null,
+        val model: String? = null
     ) : DeviceUpdateEvent
 
     data class BatteryUpdated(
         override val deviceId: String,
-        val battery: Int
+        val battery: Int,
+        val model: String? = null
     ) : DeviceUpdateEvent
 
     data class NetworkUpdated(
         override val deviceId: String,
-        val network: String
+        val network: String,
+        val model: String? = null
     ) : DeviceUpdateEvent
 
     data class MetadataUpdated(

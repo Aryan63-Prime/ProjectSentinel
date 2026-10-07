@@ -89,6 +89,7 @@ fun DashboardMapView(
         """
         {
             "deviceId": "${marker.deviceId}",
+            "uniqueKey": "${marker.uniqueKey}",
             "deviceName": "${marker.deviceName.replace("'", "\\'")}",
             "snippet": "${cleanSnippet.replace("'", "\\'")}",
             "latitude": ${marker.latitude},
@@ -351,7 +352,7 @@ fun DashboardMapView(
 
                                         var marker = L.marker([m.latitude, m.longitude], { icon: icon });
                                         marker.on('click', function() {
-                                            AndroidInterface.onMarkerClick(m.deviceId);
+                                            AndroidInterface.onMarkerClick(m.uniqueKey || m.deviceId);
                                         });
                                         marker.addTo(currentLayerGroup);
                                     } else {

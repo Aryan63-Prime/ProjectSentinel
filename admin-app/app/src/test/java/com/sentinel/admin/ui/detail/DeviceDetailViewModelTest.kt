@@ -139,6 +139,7 @@ class DeviceDetailViewModelTest {
     private lateinit var fakeContactRepo: FakeContactRepository
     private lateinit var audioMonitor: AudioMonitor
     private lateinit var webSocketDataSource: WebSocketDataSource
+    private lateinit var fakePttRecorder: FakePttAudioRecorder
 
     @Before
     fun setUp() {
@@ -147,6 +148,7 @@ class DeviceDetailViewModelTest {
         fakeAudioRepo = FakeAudioRepository()
         fakeContactRepo = FakeContactRepository()
         webSocketDataSource = WebSocketDataSource(OkHttpClient())
+        fakePttRecorder = FakePttAudioRecorder()
         audioMonitor = AudioMonitor(
             decoder = NativeOpusDecoder(),
             audioOutput = FakeAudioOutput(),
@@ -167,7 +169,8 @@ class DeviceDetailViewModelTest {
             audioRepository = fakeAudioRepo,
             contactRepository = fakeContactRepo,
             audioMonitor = audioMonitor,
-            webSocketDataSource = webSocketDataSource
+            webSocketDataSource = webSocketDataSource,
+            pttAudioRecorder = fakePttRecorder
         )
     }
 
@@ -507,5 +510,16 @@ class DeviceDetailViewModelTest {
                 recordedAt = "2026-07-09T12:00:10Z"
             )
         )
+    }
+}
+
+class FakePttAudioRecorder : com.sentinel.admin.data.audio.PttAudioRecorder {
+    override var isRecording: Boolean = false
+    override fun start(onChunkAvailable: (pcmBase64: String, normalizedLevel: Float) -> Unit): Boolean {
+        isRecording = true
+        return true
+    }
+    override fun stop() {
+        isRecording = false
     }
 }

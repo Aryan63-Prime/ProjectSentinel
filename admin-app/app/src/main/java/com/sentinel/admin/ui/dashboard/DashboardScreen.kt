@@ -306,11 +306,11 @@ fun DashboardScreen(
                             ) {
                                 items(
                                     items = uiState.displayDevices,
-                                    key = { it.deviceId }
+                                    key = { it.uniqueKey }
                                 ) { device ->
                                     DeviceCard(
                                         device = device,
-                                        onClick = { onDeviceClick(device.deviceId) }
+                                        onClick = { onDeviceClick(device.uniqueKey) }
                                     )
                                 }
                             }

@@ -109,6 +109,22 @@ func (s *Session) SetRegistered(message protocol.RegisterMessage) {
 	s.model = message.Model
 }
 
+// Model returns the device hardware model.
+func (s *Session) Model() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.model
+}
+
+// DeviceName returns the user-friendly device name.
+func (s *Session) DeviceName() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.deviceName
+}
+
 // SetLastHeartbeat stores the latest heartbeat timestamp.
 func (s *Session) SetLastHeartbeat(timestamp time.Time) {
 	s.mu.Lock()

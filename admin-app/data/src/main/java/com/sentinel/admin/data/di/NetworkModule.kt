@@ -158,11 +158,12 @@ object NetworkModule {
         connectionRepository: ConnectionRepository,
         eventMapper: DeviceUpdateEventMapper,
         moshi: Moshi,
+        @ApplicationContext context: Context,
         scope: CoroutineScope
     ): DeviceRepository {
         return DeviceRepositoryImpl(
             deviceApi, authRepository, connectionRepository,
-            eventMapper, moshi, scope
+            eventMapper, moshi, scope, context
         )
     }
 
@@ -188,5 +189,13 @@ object NetworkModule {
         @ApplicationContext context: Context
     ): ContactRepository {
         return ContactRepositoryImpl(context)
+    }
+
+    @Provides
+    @Singleton
+    fun providePttAudioRecorder(
+        @ApplicationContext context: Context
+    ): com.sentinel.admin.data.audio.PttAudioRecorder {
+        return com.sentinel.admin.data.audio.AndroidPttAudioRecorder(context)
     }
 }

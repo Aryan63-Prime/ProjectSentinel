@@ -42,14 +42,19 @@ class ConnectUseCase(
         sessionManager.saveServerUrl(serverUrl)
 
         // Step 1: Connect WebSocket
-        connectionRepository.connect(serverUrl)
+        if (connectionRepository.state.value !is ConnectionState.Connected &&
+            connectionRepository.state.value !is ConnectionState.Ready &&
+            connectionRepository.state.value !is ConnectionState.Authenticating &&
+            connectionRepository.state.value !is ConnectionState.Registering) {
+            connectionRepository.connect(serverUrl)
 
-        try {
-            withTimeout(CONNECT_TIMEOUT_MS) {
-                connectionRepository.events.first { it is ConnectionEvent.Connected }
+            try {
+                withTimeout(CONNECT_TIMEOUT_MS) {
+                    connectionRepository.events.first { it is ConnectionEvent.Connected }
+                }
+            } catch (e: TimeoutCancellationException) {
+                return Result.failure(ConnectException("Connection timeout"))
             }
-        } catch (e: TimeoutCancellationException) {
-            return Result.failure(ConnectException("Connection timeout"))
         }
 
         // Step 2: Authenticate

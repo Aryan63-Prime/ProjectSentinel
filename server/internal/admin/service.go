@@ -100,12 +100,20 @@ func (s *Service) ListDevices(ctx context.Context) ([]Device, error) {
 			return nil, err
 		}
 
-		if existing, ok := deviceMap[snapshot.DeviceID]; ok {
+		// Key by DeviceID + Model if available, or ConnectionID, to avoid collapsing multiple devices sharing a token
+		mapKey := snapshot.DeviceID
+		if snapshot.Model != "" {
+			mapKey = snapshot.DeviceID + "_" + snapshot.Model
+		} else if snapshot.ConnectionID != "" {
+			mapKey = snapshot.DeviceID + "_" + snapshot.ConnectionID
+		}
+
+		if existing, ok := deviceMap[mapKey]; ok {
 			if snapshot.ConnectedAt.After(existing.ConnectedAt) {
-				deviceMap[snapshot.DeviceID] = device
+				deviceMap[mapKey] = device
 			}
 		} else {
-			deviceMap[snapshot.DeviceID] = device
+			deviceMap[mapKey] = device
 		}
 	}
 

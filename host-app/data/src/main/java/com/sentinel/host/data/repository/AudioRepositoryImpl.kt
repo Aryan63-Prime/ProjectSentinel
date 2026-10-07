@@ -33,6 +33,9 @@ open class AudioRepositoryImpl(
         private const val TAG = "Sentinel:AudioRepo"
     }
 
+    @Volatile
+    var isMuted: Boolean = false
+
     override fun startCapture(): Flow<AudioFrame> {
         pipeline.start()
         Log.i(TAG, "Audio capture started")
@@ -52,6 +55,10 @@ open class AudioRepositoryImpl(
      * @return true if the frame was sent successfully.
      */
     fun sendFrame(frame: AudioFrame): Boolean {
+        if (isMuted) {
+            // Muted while PTT audio is actively playing on speaker to prevent feedback loop
+            return true
+        }
         val packet = frameBuilder.build(frame)
         if (packet == null) {
             Log.w(TAG, "Failed to build packet for frame seq=${frame.sequence}")

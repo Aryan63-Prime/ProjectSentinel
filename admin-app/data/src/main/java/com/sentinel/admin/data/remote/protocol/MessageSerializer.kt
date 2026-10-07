@@ -169,6 +169,14 @@ class MessageSerializer(private val moshi: Moshi = Moshi.Builder().build()) {
                 )
             }
 
+            MessageType.COMMAND_RESULT -> {
+                IncomingMessage.CommandResult(
+                    type = envelope.type,
+                    sequence = envelope.sequence,
+                    rawJson = json
+                )
+            }
+
             else -> IncomingMessage.Unknown(
                 type = envelope.type,
                 sequence = envelope.sequence

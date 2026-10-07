@@ -104,14 +104,15 @@ class DeviceRepositoryImplLiveUpdateTest {
     private fun emitConnected(
         deviceId: String = "HOST-001",
         deviceName: String = "Test Device",
-        sequence: Long = 0
+        sequence: Long = 0,
+        model: String = "TestModel"
     ) {
         emitUpdate(
             DeviceUpdateDataJson(
                 event = "connected",
                 deviceId = deviceId,
                 deviceName = deviceName,
-                model = "TestModel",
+                model = model,
                 appVersion = "1.0"
             ),
             sequence = sequence
@@ -433,5 +434,156 @@ class DeviceRepositoryImplLiveUpdateTest {
 
         assertEquals(5L, repo.eventStatistics.value.applied) // +1 HOST-002
         assertEquals(1L, repo.eventStatistics.value.stale)   // HOST-001's seq 8
+    }
+
+    @Test
+    fun `dedicated telemetry report updates specific device and isolates from generic broadcast`() = scope.runTest {
+        // Two devices with same deviceId but different models
+        emitConnected("HOST-001", "Samsung S24", model = "SM-S928B", sequence = 1)
+        emitConnected("HOST-001", "Vivo Phone", model = "I2401", sequence = 2)
+        advanceUntilIdle()
+
+        assertEquals(2, repo.devices.value.values.distinctBy { it.uniqueKey }.size)
+
+        // Samsung sends dedicated TELEMETRY_REPORT with battery 45%
+        val telemetryJson = """
+            {
+                "type": "COMMAND_RESULT",
+                "version": 1,
+                "timestamp": 12345,
+                "sequence": 3,
+                "data": {
+                    "command": "TELEMETRY_REPORT",
+                    "success": true,
+                    "payload": {
+                        "deviceId": "HOST-001",
+                        "model": "SM-S928B",
+                        "uniqueKey": "HOST-001_SM-S928B",
+                        "battery": 45,
+                        "network": "WiFi (Charging)",
+                        "latitude": 28.3657,
+                        "longitude": 77.5402,
+                        "accuracy": 10.0
+                    }
+                }
+            }
+        """.trimIndent()
+        eventsFlow.tryEmit(ConnectionEvent.CommandResultReceived(telemetryJson))
+        advanceUntilIdle()
+
+        val samsung = repo.devices.value["HOST-001_SM-S928B"]!!
+        assertEquals(45, samsung.latestLocation?.battery)
+        assertEquals("WiFi (Charging)", samsung.latestLocation?.network)
+
+        // Server sends generic LOCATION broadcast for HOST-001 with battery 50% (from Vivo)
+        emitUpdate(
+            DeviceUpdateDataJson(
+                event = "location",
+                deviceId = "HOST-001",
+                latitude = 28.3658,
+                longitude = 77.5403,
+                accuracy = 8.0,
+                battery = 50,
+                network = "WiFi"
+            ),
+            sequence = 4
+        )
+        advanceUntilIdle()
+
+        // Samsung must still have 45% (isolated!)
+        val samsungAfter = repo.devices.value["HOST-001_SM-S928B"]!!
+        assertEquals(45, samsungAfter.latestLocation?.battery)
+        assertEquals("WiFi (Charging)", samsungAfter.latestLocation?.network)
+
+        // Vivo must have 50%
+        val vivoAfter = repo.devices.value["HOST-001_I2401"]!!
+        assertEquals(50, vivoAfter.latestLocation?.battery)
+        assertEquals("WiFi", vivoAfter.latestLocation?.network)
+    }
+
+    @Test
+    fun `dedicated telemetry echo from server is suppressed and does not overwrite other device`() = scope.runTest {
+        // Two devices sharing HOST-001
+        emitConnected("HOST-001", "Samsung S24", model = "SM-S928B", sequence = 1)
+        emitConnected("HOST-001", "Vivo Phone", model = "I2401", sequence = 2)
+        advanceUntilIdle()
+
+        // Samsung has 45% battery
+        val samsungTelemetry = """
+            {
+                "type": "COMMAND_RESULT",
+                "version": 1,
+                "timestamp": 12345,
+                "sequence": 3,
+                "data": {
+                    "command": "GET_SYSTEM_INFO",
+                    "success": true,
+                    "payload": {
+                        "deviceId": "HOST-001",
+                        "model": "SM-S928B",
+                        "uniqueKey": "HOST-001_SM-S928B",
+                        "batteryPercent": 45,
+                        "isCharging": false
+                    }
+                }
+            }
+        """.trimIndent()
+        eventsFlow.tryEmit(ConnectionEvent.CommandResultReceived(samsungTelemetry))
+        advanceUntilIdle()
+
+        val samsungInitial = repo.devices.value["HOST-001_SM-S928B"]!!
+        assertEquals(45, samsungInitial.latestLocation?.battery)
+
+        // Vivo reports dedicated telemetry: 65% battery, charging, lat 28.3659, lng 77.5403
+        val vivoTelemetry = """
+            {
+                "type": "COMMAND_RESULT",
+                "version": 1,
+                "timestamp": 12346,
+                "sequence": 4,
+                "data": {
+                    "command": "TELEMETRY_REPORT",
+                    "success": true,
+                    "payload": {
+                        "deviceId": "HOST-001",
+                        "model": "I2401",
+                        "uniqueKey": "HOST-001_I2401",
+                        "battery": 65,
+                        "network": "WiFi (Charging)",
+                        "latitude": 28.3659,
+                        "longitude": 77.5403,
+                        "accuracy": 15.0
+                    }
+                }
+            }
+        """.trimIndent()
+        eventsFlow.tryEmit(ConnectionEvent.CommandResultReceived(vivoTelemetry))
+        advanceUntilIdle()
+
+        val vivoCurrent = repo.devices.value["HOST-001_I2401"]!!
+        assertEquals(65, vivoCurrent.latestLocation?.battery)
+
+        // Server broadcasts untagged generic DEVICE_UPDATE echo of Vivo's report (deviceId: HOST-001, battery: 65)
+        emitUpdate(
+            DeviceUpdateDataJson(
+                event = "location",
+                deviceId = "HOST-001",
+                latitude = 28.3659,
+                longitude = 77.5403,
+                accuracy = 15.0,
+                battery = 65,
+                network = "WiFi (Charging)"
+            ),
+            sequence = 5
+        )
+        advanceUntilIdle()
+
+        // CRITICAL CHECK: Samsung must NOT be overwritten with Vivo's 65% echo!
+        val samsungAfterEcho = repo.devices.value["HOST-001_SM-S928B"]!!
+        assertEquals(45, samsungAfterEcho.latestLocation?.battery)
+
+        // Vivo must still be 65%
+        val vivoAfterEcho = repo.devices.value["HOST-001_I2401"]!!
+        assertEquals(65, vivoAfterEcho.latestLocation?.battery)
     }
 }

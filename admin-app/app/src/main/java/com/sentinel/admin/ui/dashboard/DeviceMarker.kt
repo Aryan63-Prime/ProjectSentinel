@@ -15,7 +15,8 @@ data class DeviceMarker(
     val battery: Int,
     val network: String,
     val isMoving: Boolean = false,
-    val isEmergency: Boolean = false
+    val isEmergency: Boolean = false,
+    val uniqueKey: String = deviceId
 ) {
     /** Marker snippet text for the info window. */
     val snippet: String

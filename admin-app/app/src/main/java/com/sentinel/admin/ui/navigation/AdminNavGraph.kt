@@ -119,6 +119,7 @@ fun AdminNavGraph() {
                 onCaptureScreenshotClick = viewModel::sendCaptureScreenshotCommand,
                 onPttStart = viewModel::startPtt,
                 onPttStop = viewModel::stopPtt,
+                onTogglePttArm = viewModel::setPttArmed,
                 onSyncContactClick = viewModel::sendSyncContactsCommand,
                 onOpenAddressBookClick = viewModel::openAddressBookDialog,
                 onLockDeviceClick = viewModel::lockDevice,
@@ -131,7 +132,8 @@ fun AdminNavGraph() {
         }
 
         composable(AdminRoutes.FILE_BROWSER) { backStackEntry ->
-            val deviceId = backStackEntry.arguments?.getString("deviceId") ?: ""
+            val rawDeviceId = backStackEntry.arguments?.getString("deviceId") ?: ""
+            val deviceId = if (rawDeviceId.contains("_")) rawDeviceId.substringBefore("_") else rawDeviceId
             FileBrowserScreen(
                 deviceId = deviceId,
                 onBack = { navController.popBackStack() }

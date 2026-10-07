@@ -17,7 +17,7 @@ func (f *fakeBroadcaster) BroadcastToAdmins(payload []byte) {
 
 func TestBroadcastDisconnect_EmitsDeviceUpdate(t *testing.T) {
 	fb := &fakeBroadcaster{}
-	d := New(nil, nil, nil, nil, nil)
+	d := New(nil, nil, nil, nil, nil, nil)
 	d.SetBroadcaster(fb)
 
 	d.BroadcastDisconnect("HOST-001")
@@ -50,7 +50,7 @@ func TestBroadcastDisconnect_EmitsDeviceUpdate(t *testing.T) {
 
 func TestBroadcastDisconnect_EmptyDeviceID_NoBroadcast(t *testing.T) {
 	fb := &fakeBroadcaster{}
-	d := New(nil, nil, nil, nil, nil)
+	d := New(nil, nil, nil, nil, nil, nil)
 	d.SetBroadcaster(fb)
 
 	d.BroadcastDisconnect("")
@@ -61,7 +61,7 @@ func TestBroadcastDisconnect_EmptyDeviceID_NoBroadcast(t *testing.T) {
 }
 
 func TestBroadcastDisconnect_NilBroadcaster_NoPanic(t *testing.T) {
-	d := New(nil, nil, nil, nil, nil)
+	d := New(nil, nil, nil, nil, nil, nil)
 	// No broadcaster set — should not panic
 	d.BroadcastDisconnect("HOST-001")
 }

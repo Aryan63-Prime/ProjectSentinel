@@ -61,7 +61,8 @@ class DeviceUpdateEventMapper {
                     longitude = lng,
                     accuracy = data.accuracy,
                     battery = data.battery,
-                    network = data.network
+                    network = data.network,
+                    model = data.model
                 )
             }
 
@@ -69,7 +70,8 @@ class DeviceUpdateEventMapper {
                 val battery = data.battery ?: return null
                 DeviceUpdateEvent.BatteryUpdated(
                     deviceId = data.deviceId,
-                    battery = battery
+                    battery = battery,
+                    model = data.model
                 )
             }
 
@@ -77,7 +79,8 @@ class DeviceUpdateEventMapper {
                 val network = data.network ?: return null
                 DeviceUpdateEvent.NetworkUpdated(
                     deviceId = data.deviceId,
-                    network = network
+                    network = network,
+                    model = data.model
                 )
             }
 

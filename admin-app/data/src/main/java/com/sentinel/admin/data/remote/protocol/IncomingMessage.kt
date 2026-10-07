@@ -57,6 +57,12 @@ sealed interface IncomingMessage {
         val error: String?
     ) : IncomingMessage
 
+    data class CommandResult(
+        override val type: String,
+        override val sequence: Long,
+        val rawJson: String
+    ) : IncomingMessage
+
     data class Unknown(
         override val type: String,
         override val sequence: Long

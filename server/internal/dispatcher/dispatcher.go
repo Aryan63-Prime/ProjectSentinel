@@ -125,10 +125,18 @@ func (d *Dispatcher) Dispatch(ctx context.Context, session Session, data []byte)
 		result := d.dispatchWithErrors(response, err, message.Sequence)
 		if err == nil {
 			ts := time.Now().UTC().Format(time.RFC3339)
+			var modelPtr *string
+			if ms, ok := session.(interface{ Model() string }); ok {
+				m := ms.Model()
+				if m != "" {
+					modelPtr = &m
+				}
+			}
 			d.broadcastDeviceUpdate(protocol.DeviceUpdateMessage{
 				Event:     protocol.EventHeartbeat,
 				DeviceID:  session.AuthenticatedDeviceID(),
 				Timestamp: &ts,
+				Model:     modelPtr,
 			})
 		}
 		return result
@@ -139,6 +147,13 @@ func (d *Dispatcher) Dispatch(ctx context.Context, session Session, data []byte)
 		if err == nil {
 			var loc protocol.LocationMessage
 			_ = message.DecodeData(&loc)
+			var modelPtr *string
+			if ms, ok := session.(interface{ Model() string }); ok {
+				m := ms.Model()
+				if m != "" {
+					modelPtr = &m
+				}
+			}
 			d.broadcastDeviceUpdate(protocol.DeviceUpdateMessage{
 				Event:     protocol.EventLocation,
 				DeviceID:  session.AuthenticatedDeviceID(),
@@ -147,6 +162,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, session Session, data []byte)
 				Accuracy:  &loc.Accuracy,
 				Battery:   &loc.Battery,
 				Network:   &loc.Network,
+				Model:     modelPtr,
 			})
 		}
 		return result

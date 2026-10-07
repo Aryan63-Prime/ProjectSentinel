@@ -401,7 +401,7 @@ func newIntegrationServerWithHeartbeat(t *testing.T, heartbeatService *heartbeat
 	heartbeatHandler := heartbeat.NewHandler(heartbeatService)
 	locationHandler := location.NewHandler(location.NewService())
 	audioHandler := audio.NewHandler(audio.NewService(nil, nil))
-	dispatch := dispatcher.New(authHandler, deviceHandler, heartbeatHandler, locationHandler, audioHandler)
+	dispatch := dispatcher.New(authHandler, deviceHandler, heartbeatHandler, locationHandler, audioHandler, nil)
 	gateway := New(dispatch, heartbeatService, zap.NewNop())
 	server := httptest.NewServer(gateway.Handler())
 

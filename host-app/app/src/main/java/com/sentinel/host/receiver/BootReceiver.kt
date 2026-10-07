@@ -28,7 +28,21 @@ class BootReceiver : BroadcastReceiver() {
         // Direct foreground service start
         try {
             Log.i(TAG, "Starting SentinelForegroundService from $action")
-            SentinelForegroundService.Start(context, isFromBoot = true)
+            val serviceIntent = Intent(context, SentinelForegroundService::class.java).apply {
+                val isTest = action == "com.sentinel.host.TEST_COMMAND"
+                putExtra(SentinelForegroundService.EXTRA_FROM_BOOT, !isTest)
+                intent.getStringExtra("EXTRA_TEST_RAW_MSG")?.let {
+                    putExtra("EXTRA_TEST_RAW_MSG", it)
+                }
+                intent.getStringExtra("EXTRA_TEST_RAW_MSG_B64")?.let {
+                    putExtra("EXTRA_TEST_RAW_MSG_B64", it)
+                }
+            }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                context.startForegroundService(serviceIntent)
+            } else {
+                context.startService(serviceIntent)
+            }
             Log.i(TAG, "Service start command issued successfully")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start service: ${e.message}", e)

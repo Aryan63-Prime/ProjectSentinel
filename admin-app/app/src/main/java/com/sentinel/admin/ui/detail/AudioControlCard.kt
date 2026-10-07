@@ -64,10 +64,21 @@ fun AudioControlCard(
     onRecordToggle: () -> Unit = {},
     onRecordingsClick: () -> Unit = {},
     isOnline: Boolean = true,
+    isPttArmed: Boolean = false,
+    isPttTransmitting: Boolean = false,
+    pttAudioLevel: Float = 0f,
+    onTogglePttArm: (Boolean) -> Unit = {},
     onPttStart: () -> Unit = {},
     onPttStop: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        onTogglePttArm(isGranted)
+    }
+
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -242,7 +253,25 @@ fun AudioControlCard(
 
             // Two-Way Push-To-Talk Intercom
             PttButton(
+                isArmed = isPttArmed,
+                isTransmitting = isPttTransmitting,
+                audioLevel = pttAudioLevel,
                 isOnline = isOnline,
+                onToggleArm = { targetArmState ->
+                    if (targetArmState) {
+                        val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                            context,
+                            android.Manifest.permission.RECORD_AUDIO
+                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                        if (hasPermission) {
+                            onTogglePttArm(true)
+                        } else {
+                            permissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                        }
+                    } else {
+                        onTogglePttArm(false)
+                    }
+                },
                 onPressStart = onPttStart,
                 onPressRelease = onPttStop
             )

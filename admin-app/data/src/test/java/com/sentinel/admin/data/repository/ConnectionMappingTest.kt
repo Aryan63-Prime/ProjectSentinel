@@ -144,6 +144,16 @@ class ConnectionMappingTest {
     }
 
     @Test
+    fun `CommandResult maps to CommandResultReceived event`() {
+        val raw = """{"type":"COMMAND_RESULT","sequence":10}"""
+        val msg = IncomingMessage.CommandResult("COMMAND_RESULT", 10, raw)
+        val event = msg.toEvent(raw)
+
+        assertTrue(event is ConnectionEvent.CommandResultReceived)
+        assertEquals(raw, (event as ConnectionEvent.CommandResultReceived).rawJson)
+    }
+
+    @Test
     fun `Unknown maps to null event`() {
         val msg = IncomingMessage.Unknown("FOOBAR", 9)
         assertNull(msg.toEvent())

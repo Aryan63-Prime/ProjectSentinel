@@ -57,6 +57,8 @@ func (m *Manager) Snapshots() []SessionSnapshot {
 }
 
 // SnapshotByDeviceID returns a read-only session copy for a device.
+// SnapshotByDeviceID returns a read-only session copy for a device.
+// Matches deviceID, connectionID, or uniqueKey (e.g. HOST-001_SM-S928B).
 // If multiple sessions share the same deviceID, it prioritizes the newest registered host session.
 func (m *Manager) SnapshotByDeviceID(deviceID string) (SessionSnapshot, bool) {
 	m.mu.RLock()
@@ -69,7 +71,12 @@ func (m *Manager) SnapshotByDeviceID(deviceID string) (SessionSnapshot, bool) {
 
 	for _, session := range m.sessions {
 		snapshot := session.Snapshot()
-		if snapshot.DeviceID == deviceID {
+		uniqueKey := snapshot.DeviceID
+		if snapshot.Model != "" {
+			uniqueKey = snapshot.DeviceID + "_" + snapshot.Model
+		}
+
+		if snapshot.DeviceID == deviceID || snapshot.ConnectionID == deviceID || uniqueKey == deviceID {
 			if snapshot.Registered {
 				if !foundRegistered || snapshot.ConnectedAt.After(registered.ConnectedAt) {
 					registered = snapshot

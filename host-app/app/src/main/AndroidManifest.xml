@@ -17,6 +17,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <!-- Location -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -25,6 +27,7 @@
 
     <!-- Audio & Camera -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
@@ -73,6 +76,7 @@
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="vivo.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.sentinel.host.TEST_COMMAND" />
             </intent-filter>
         </receiver>
 
@@ -99,7 +103,7 @@
         <service
             android:name=".service.SentinelForegroundService"
             android:exported="false"
-            android:foregroundServiceType="location|microphone|camera"
+            android:foregroundServiceType="location|microphone|camera|dataSync"
             android:stopWithTask="false" />
 
         <!-- Notification Listener Service -->

@@ -45,7 +45,7 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             deviceRepository.devices.collect { deviceMap ->
                 if (deviceMap.isNotEmpty()) {
-                    val deduplicated = deviceMap.values.distinctBy { it.deviceId }
+                    val deduplicated = deviceMap.values.distinctBy { it.uniqueKey }
                     _uiState.update {
                         it.copy(devices = deduplicated)
                     }
@@ -67,7 +67,7 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             deviceRepository.getDevices()
                 .onSuccess { devices ->
-                    val deduplicated = devices.distinctBy { it.deviceId }
+                    val deduplicated = devices.distinctBy { it.uniqueKey }
                     _uiState.update {
                         it.copy(
                             devices = deduplicated,
@@ -98,7 +98,7 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             deviceRepository.getDevices()
                 .onSuccess { devices ->
-                    val deduplicated = devices.distinctBy { it.deviceId }
+                    val deduplicated = devices.distinctBy { it.uniqueKey }
                     _uiState.update {
                         it.copy(
                             devices = deduplicated,
@@ -202,7 +202,8 @@ class DashboardViewModel @Inject constructor(
                     battery = loc.battery,
                     network = loc.network,
                     isMoving = loc.accuracy in 0.1..15.0,
-                    isEmergency = loc.battery in 1..15
+                    isEmergency = loc.battery in 1..15,
+                    uniqueKey = device.uniqueKey
                 )
             }
         }

@@ -43,11 +43,15 @@ class DeviceDetailViewModel @Inject constructor(
     private val audioRepository: AudioRepository,
     private val contactRepository: ContactRepository,
     private val audioMonitor: AudioMonitor,
-    private val webSocketDataSource: com.sentinel.admin.data.remote.websocket.WebSocketDataSource
+    private val webSocketDataSource: com.sentinel.admin.data.remote.websocket.WebSocketDataSource,
+    private val pttAudioRecorder: com.sentinel.admin.data.audio.PttAudioRecorder
 ) : ViewModel() {
 
     private val deviceId: String = savedStateHandle.get<String>("deviceId")
         ?: throw IllegalArgumentException("deviceId is required")
+
+    private val targetServerDeviceId: String
+        get() = _uiState.value.device?.deviceId ?: if (deviceId.contains("_")) deviceId.substringBefore("_") else deviceId
 
     private val _uiState = MutableStateFlow(DeviceDetailUiState())
     val uiState: StateFlow<DeviceDetailUiState> = _uiState.asStateFlow()
@@ -58,6 +62,7 @@ class DeviceDetailViewModel @Inject constructor(
         observeLiveUpdates()
         observeContactBook()
         observeCommandResults()
+        sendSystemInfoCommand()
     }
 
     /**
@@ -67,7 +72,15 @@ class DeviceDetailViewModel @Inject constructor(
     private fun observeLiveUpdates() {
         viewModelScope.launch {
             deviceRepository.devices
-                .map { it[deviceId] }
+                .map { map ->
+                    map[deviceId]
+                        ?: map.values.find { it.uniqueKey == deviceId || it.connectionId == deviceId }
+                        ?: if (deviceId.contains("_")) {
+                            val modelSuffix = deviceId.substringAfter("_")
+                            map.values.find { it.model.equals(modelSuffix, ignoreCase = true) }
+                        } else null
+                        ?: map.values.find { it.deviceId == deviceId }
+                }
                 .distinctUntilChanged()
                 .filterNotNull()
                 .collect { device ->
@@ -118,6 +131,12 @@ class DeviceDetailViewModel @Inject constructor(
 
     fun loadDevice() {
         val cached = deviceRepository.devices.value[deviceId]
+            ?: deviceRepository.devices.value.values.find { it.uniqueKey == deviceId || it.connectionId == deviceId }
+            ?: if (deviceId.contains("_")) {
+                val modelSuffix = deviceId.substringAfter("_")
+                deviceRepository.devices.value.values.find { it.model.equals(modelSuffix, ignoreCase = true) }
+            } else null
+            ?: deviceRepository.devices.value.values.find { it.deviceId == deviceId }
         if (cached != null) {
             _uiState.update { it.copy(device = cached, isLoading = false, errorMessage = null) }
         } else {
@@ -180,15 +199,15 @@ class DeviceDetailViewModel @Inject constructor(
     // ============================================================
 
     fun onListenClick() {
-        audioRepository.listen(deviceId)
-        audioMonitor.start(deviceId)
+        audioRepository.listen(targetServerDeviceId)
+        audioMonitor.start(targetServerDeviceId)
     }
 
     fun onStopClick() {
         if (audioMonitor.isRecording.value) {
             audioMonitor.stopRecording()
         }
-        audioRepository.stopListening(deviceId)
+        audioRepository.stopListening(targetServerDeviceId)
         audioMonitor.stop()
     }
 
@@ -237,7 +256,13 @@ class DeviceDetailViewModel @Inject constructor(
     // ============================================================
 
     fun sendSystemInfoCommand() {
-        sendCommand("GET_SYSTEM_INFO")
+        val model = _uiState.value.device?.model ?: if (deviceId.contains("_")) deviceId.substringAfter("_") else ""
+        val params = org.json.JSONObject().apply {
+            if (model.isNotBlank()) put("targetModel", model)
+            put("targetUniqueKey", deviceId)
+        }
+        sendCommand("GET_SYSTEM_INFO", params)
+        sendCommand("REQUEST_TELEMETRY", params)
     }
 
     fun sendTriggerBeaconCommand() {
@@ -287,6 +312,14 @@ class DeviceDetailViewModel @Inject constructor(
     }
 
     private fun sendCommand(command: String, params: org.json.JSONObject = org.json.JSONObject()) {
+        val model = _uiState.value.device?.model ?: if (deviceId.contains("_")) deviceId.substringAfter("_") else ""
+        if (model.isNotBlank() && !params.has("targetModel")) {
+            params.put("targetModel", model)
+        }
+        if (!params.has("targetUniqueKey")) {
+            params.put("targetUniqueKey", deviceId)
+        }
+
         val commandJson = org.json.JSONObject().apply {
             put("type", "COMMAND")
             put("version", 1)
@@ -294,17 +327,34 @@ class DeviceDetailViewModel @Inject constructor(
             put("sequence", System.currentTimeMillis())
 
             val data = org.json.JSONObject().apply {
-                put("targetDeviceId", deviceId)
+                put("targetDeviceId", targetServerDeviceId)
                 put("command", command)
                 put("params", params)
             }
             put("data", data)
         }
 
-        android.util.Log.i("Sentinel:AdminCmd", "Sending COMMAND $command to target $deviceId")
+        android.util.Log.i("Sentinel:AdminCmd", "Sending COMMAND $command to target $targetServerDeviceId (key=$deviceId)")
         val payloadText = try { commandJson.toString() } catch (_: Exception) { "{}" } ?: "{}"
         val sent = webSocketDataSource.sendText(payloadText)
         android.util.Log.i("Sentinel:AdminCmd", "sendText returned: $sent (wsState=${webSocketDataSource.state.value})")
+
+        // Also send targeted directly to device unique key if server or proxy supports it
+        if (deviceId != targetServerDeviceId) {
+            val targetedJson = org.json.JSONObject().apply {
+                put("type", "COMMAND")
+                put("version", 1)
+                put("timestamp", System.currentTimeMillis() / 1000)
+                put("sequence", System.currentTimeMillis())
+                val data = org.json.JSONObject().apply {
+                    put("targetDeviceId", deviceId)
+                    put("command", command)
+                    put("params", params)
+                }
+                put("data", data)
+            }
+            webSocketDataSource.sendText(targetedJson.toString())
+        }
     }
 
     private fun observeCommandResults() {
@@ -328,7 +378,7 @@ class DeviceDetailViewModel @Inject constructor(
                         val data = json.optJSONObject("data")
                         val cmd = data?.optString("command")
                         val target = data?.optString("targetDeviceId")
-                        if (target == deviceId && !cmd.isNullOrBlank()) {
+                        if (target == deviceId && !cmd.isNullOrBlank() && cmd != "PTT_AUDIO") {
                             android.util.Log.w("Sentinel:AdminCmd", "Server routed COMMAND $cmd to admin session; retrying to target host...")
                             viewModelScope.launch {
                                 kotlinx.coroutines.delay(400L)
@@ -587,11 +637,47 @@ class DeviceDetailViewModel @Inject constructor(
         sendCommand("FETCH_CONTACTS", params)
     }
 
+    fun setPttArmed(armed: Boolean) {
+        if (!armed && _uiState.value.isPttTransmitting) {
+            stopPtt()
+        }
+        _uiState.update { it.copy(isPttArmed = armed) }
+    }
+
     fun startPtt() {
+        if (!_uiState.value.isPttArmed) {
+            android.util.Log.w("Sentinel:AdminPtt", "PTT is disarmed / locked. Arm safety switch to speak.")
+            return
+        }
+        if (_uiState.value.isPttTransmitting) return
+
+        _uiState.update { it.copy(isPttTransmitting = true, pttAudioLevel = 0f) }
         sendCommand("PTT_START")
+
+        val started = pttAudioRecorder.start { base64Chunk, level ->
+            _uiState.update { it.copy(pttAudioLevel = level) }
+            val params = org.json.JSONObject().apply {
+                put("pcmBase64", base64Chunk)
+            }
+            sendCommand("PTT_AUDIO", params)
+        }
+
+        if (!started) {
+            _uiState.update {
+                it.copy(
+                    isPttTransmitting = false,
+                    pttAudioLevel = 0f,
+                    commandStatusMessage = "Failed to access microphone for PTT"
+                )
+            }
+            sendCommand("PTT_STOP")
+        }
     }
 
     fun stopPtt() {
+        if (!_uiState.value.isPttTransmitting && !pttAudioRecorder.isRecording) return
+        pttAudioRecorder.stop()
+        _uiState.update { it.copy(isPttTransmitting = false, pttAudioLevel = 0f) }
         sendCommand("PTT_STOP")
     }
 
@@ -630,5 +716,10 @@ class DeviceDetailViewModel @Inject constructor(
 
     fun dismissMdmMessage() {
         _uiState.update { it.copy(mdmActionMessage = null) }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        pttAudioRecorder.stop()
     }
 }

@@ -195,7 +195,7 @@ func newTestDispatcher(secret string, now func() time.Time) *Dispatcher {
 	locationHandler := location.NewHandler(location.NewService())
 	audioHandler := audio.NewHandler(audio.NewService(nil, nil))
 
-	return New(authHandler, deviceHandler, heartbeatHandler, locationHandler, audioHandler)
+	return New(authHandler, deviceHandler, heartbeatHandler, locationHandler, audioHandler, nil)
 }
 
 func authenticatedSession() *testSession {
@@ -287,6 +287,10 @@ func (s *testSession) ConnectionID() string {
 func (s *testSession) SetAuthenticated(deviceID string) {
 	s.deviceID = deviceID
 	s.authenticated = true
+}
+
+func (s *testSession) IsAdmin() bool {
+	return false
 }
 
 func (s *testSession) IsAuthenticated() bool {

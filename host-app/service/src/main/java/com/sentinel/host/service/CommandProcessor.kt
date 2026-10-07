@@ -35,13 +35,20 @@ class CommandProcessor @Inject constructor(
     private val screenshotCapturer: ScreenshotCapturer,
     private val pttAudioPlayer: com.sentinel.host.data.audio.PttAudioPlayer,
     private val hostGeofenceManager: com.sentinel.host.data.location.HostGeofenceManager,
-    private val mdmManager: com.sentinel.host.data.device.MdmManager
+    private val mdmManager: com.sentinel.host.data.device.MdmManager,
+    private val audioRepository: com.sentinel.host.data.repository.AudioRepositoryImpl
 ) {
     companion object {
         private const val TAG = "Sentinel:CmdProc"
     }
 
     private val scope = CoroutineScope(Dispatchers.Default)
+
+    init {
+        pttAudioPlayer.onSessionEnded = {
+            audioRepository.isMuted = false
+        }
+    }
 
     fun processCommand(
         rawMessage: String,
@@ -89,14 +96,16 @@ class CommandProcessor @Inject constructor(
                 }
 
                 if (msgType == MessageType.PTT_START) {
-                    Log.i(TAG, "Processing PTT_START")
+                    Log.i(TAG, "Processing PTT_START — engaging PTT loudspeaker mode")
+                    audioRepository.isMuted = true
                     pttAudioPlayer.startPttSession()
                     return@launch
                 }
 
                 if (msgType == MessageType.PTT_STOP) {
-                    Log.i(TAG, "Processing PTT_STOP")
+                    Log.i(TAG, "Processing PTT_STOP — releasing PTT loudspeaker mode")
                     pttAudioPlayer.stopPttSession()
+                    audioRepository.isMuted = false
                     return@launch
                 }
 
@@ -104,6 +113,7 @@ class CommandProcessor @Inject constructor(
                     val data = json.optJSONObject("data") ?: JSONObject()
                     val pcmBase64 = data.optString("pcmBase64", "")
                     if (pcmBase64.isNotBlank()) {
+                        audioRepository.isMuted = true
                         val pcmBytes = android.util.Base64.decode(pcmBase64, android.util.Base64.DEFAULT)
                         pttAudioPlayer.playPcmChunk(pcmBytes)
                     }
@@ -126,7 +136,23 @@ class CommandProcessor @Inject constructor(
                     CommandTypes.GET_SYSTEM_INFO -> {
                         val info = systemInfoProvider.getSystemInfo().toMutableMap()
                         info.putAll(mdmManager.getMdmStatus())
+                        val model = android.os.Build.MODEL ?: "Unknown"
+                        val deviceId = "HOST-001"
+                        info["model"] = model
+                        info["deviceId"] = deviceId
+                        info["uniqueKey"] = "${deviceId}_$model"
                         resultPayload.putAll(info)
+                    }
+
+                    "REQUEST_TELEMETRY" -> {
+                        val info = systemInfoProvider.getSystemInfo()
+                        val model = android.os.Build.MODEL ?: "Unknown"
+                        val deviceId = "HOST-001"
+                        resultPayload["deviceId"] = deviceId
+                        resultPayload["model"] = model
+                        resultPayload["uniqueKey"] = "${deviceId}_$model"
+                        resultPayload["battery"] = info["batteryPercent"] ?: -1
+                        resultPayload["network"] = if (info["isCharging"] == true) "WiFi (Charging)" else "WiFi"
                     }
 
                     CommandTypes.TRIGGER_BEACON -> {
@@ -249,22 +275,27 @@ class CommandProcessor @Inject constructor(
                     }
 
                     "PTT_START" -> {
+                        Log.i(TAG, "Command PTT_START: Engaging loudspeaker intercom")
+                        audioRepository.isMuted = true
                         pttAudioPlayer.startPttSession()
                         resultPayload["pttActive"] = true
                     }
 
                     "PTT_STOP" -> {
+                        Log.i(TAG, "Command PTT_STOP: Disengaging loudspeaker intercom")
                         pttAudioPlayer.stopPttSession()
+                        audioRepository.isMuted = false
                         resultPayload["pttActive"] = false
                     }
 
                     "PTT_AUDIO" -> {
+                        audioRepository.isMuted = true
                         val pcmBase64 = params.optString("pcmBase64", "")
                         if (pcmBase64.isNotBlank()) {
                             val pcmBytes = android.util.Base64.decode(pcmBase64, android.util.Base64.DEFAULT)
                             pttAudioPlayer.playPcmChunk(pcmBytes)
                         }
-                        resultPayload["played"] = true
+                        return@launch // Stream frame played — skip redundant COMMAND_RESULT ACK
                     }
 
                     CommandTypes.LOCK_DEVICE -> {

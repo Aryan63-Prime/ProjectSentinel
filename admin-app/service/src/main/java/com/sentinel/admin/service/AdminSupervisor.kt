@@ -209,6 +209,7 @@ open class AdminSupervisor(
             is ConnectionEvent.FilesListReceived -> { /* no-op, handled by FileViewModel */ }
             is ConnectionEvent.FileDownloadReceived -> { /* no-op, handled by FileDownloadManager */ }
             is ConnectionEvent.FileChunkReceived -> { /* no-op, handled by FileDownloadManager */ }
+            is ConnectionEvent.CommandResultReceived -> { /* no-op, handled by DeviceRepository / ViewModels */ }
         }
     }
 

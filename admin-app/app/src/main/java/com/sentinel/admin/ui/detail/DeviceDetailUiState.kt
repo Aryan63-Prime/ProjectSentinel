@@ -31,6 +31,12 @@ data class DeviceDetailUiState(
     val isRecording: Boolean = false,
     /** Active recording duration in milliseconds. */
     val recordingDurationMs: Long = 0L,
+    /** PTT Intercom safety switch: true = Armed (ready to transmit), false = Safe/Locked. */
+    val isPttArmed: Boolean = false,
+    /** Whether Push-To-Talk is actively transmitting mic audio to the host device. */
+    val isPttTransmitting: Boolean = false,
+    /** Live normalized peak audio amplitude [0f..1f] for PTT waveform visualizer. */
+    val pttAudioLevel: Float = 0f,
     /** Air Command Dialog States */
     val showDiagnosticsDialog: Boolean = false,
     val diagnosticsData: Map<String, Any> = emptyMap(),

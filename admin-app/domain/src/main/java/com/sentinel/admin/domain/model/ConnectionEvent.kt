@@ -57,4 +57,7 @@ sealed interface ConnectionEvent {
 
     /** File download response received. */
     data class FileDownloadReceived(val rawJson: String) : ConnectionEvent
+
+    /** Command result received from a host device via server broadcast. */
+    data class CommandResultReceived(val rawJson: String) : ConnectionEvent
 }

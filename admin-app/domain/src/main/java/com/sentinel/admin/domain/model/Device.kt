@@ -31,4 +31,12 @@ data class Device(
     val appVersion: String,
     val model: String,
     val latestLocation: DeviceLocation?
-)
+) {
+    /** Unique identity for UI rendering and tracking across sessions when devices share a deviceId token. */
+    val uniqueKey: String
+        get() = when {
+            model.isNotBlank() && model != "Unknown" -> "${deviceId}_${model}"
+            connectionId.isNotBlank() -> "${deviceId}_${connectionId}"
+            else -> deviceId
+        }
+}

@@ -126,6 +126,7 @@ fun IncomingMessage.toEvent(rawJson: String = ""): ConnectionEvent? = when (this
     is IncomingMessage.DeviceUpdate -> ConnectionEvent.DeviceUpdateReceived(rawJson)
     is IncomingMessage.FilesListRes -> ConnectionEvent.FilesListReceived(rawJson)
     is IncomingMessage.FileDownloadRes -> ConnectionEvent.FileDownloadReceived(rawJson)
+    is IncomingMessage.CommandResult -> ConnectionEvent.CommandResultReceived(rawJson)
     is IncomingMessage.Pong -> null
     is IncomingMessage.Unknown -> null
 }
