@@ -92,6 +92,104 @@ class DeviceRepositoryImpl(
         context?.getSharedPreferences("sentinel_device_cache", Context.MODE_PRIVATE)
     }
 
+    private val inMemoryCallsignMap = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    private fun loadCallsignMapping() {
+        val jsonStr = prefs?.getString("sentinel_callsign_registry", null) ?: return
+        try {
+            val obj = JSONObject(jsonStr)
+            val keys = obj.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                inMemoryCallsignMap[k] = obj.getString(k)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to load callsign registry: ${e.message}")
+        }
+    }
+
+    private fun saveCallsignMapping() {
+        try {
+            val obj = JSONObject()
+            for ((k, v) in inMemoryCallsignMap) {
+                obj.put(k, v)
+            }
+            prefs?.edit()?.putString("sentinel_callsign_registry", obj.toString())?.apply()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to save callsign registry: ${e.message}")
+        }
+    }
+
+    @Synchronized
+    private fun getOrCreateCallsign(uniqueKey: String, model: String, preferredCallsign: String = ""): String {
+        if (inMemoryCallsignMap.isEmpty()) {
+            loadCallsignMapping()
+        }
+
+        // 1. If explicit non-blank callsign is provided, record and return
+        if (preferredCallsign.isNotBlank()) {
+            inMemoryCallsignMap[uniqueKey] = preferredCallsign
+            if (model.isNotBlank()) inMemoryCallsignMap[model] = preferredCallsign
+            saveCallsignMapping()
+            return preferredCallsign
+        }
+
+        // 2. Direct match on uniqueKey
+        inMemoryCallsignMap[uniqueKey]?.let { return it }
+
+        // 3. Direct match on model or model-suffixed key
+        if (model.isNotBlank() && model != "Unknown") {
+            inMemoryCallsignMap[model]?.let { cs ->
+                inMemoryCallsignMap[uniqueKey] = cs
+                saveCallsignMapping()
+                return cs
+            }
+            for ((k, v) in inMemoryCallsignMap) {
+                if (k.endsWith("_$model", ignoreCase = true)) {
+                    inMemoryCallsignMap[uniqueKey] = v
+                    inMemoryCallsignMap[model] = v
+                    saveCallsignMapping()
+                    return v
+                }
+            }
+        }
+
+        // 4. Pre-seed default fleet callsigns for known devices if not yet assigned
+        if (model.contains("CPH2569", ignoreCase = true) && !inMemoryCallsignMap.values.contains("HOST-01")) {
+            val cs = "HOST-01"
+            inMemoryCallsignMap[uniqueKey] = cs
+            inMemoryCallsignMap[model] = cs
+            saveCallsignMapping()
+            return cs
+        }
+        if (model.contains("I2401", ignoreCase = true) && !inMemoryCallsignMap.values.contains("HOST-02")) {
+            val cs = "HOST-02"
+            inMemoryCallsignMap[uniqueKey] = cs
+            inMemoryCallsignMap[model] = cs
+            saveCallsignMapping()
+            return cs
+        }
+
+        // 5. Sequential assignment for any new device (HOST-01, HOST-02, HOST-03...)
+        val existingNumbers = inMemoryCallsignMap.values.mapNotNull { cs ->
+            val match = Regex("""HOST-(\d+)""").find(cs)
+            match?.groupValues?.get(1)?.toIntOrNull()
+        }.toSet()
+
+        var nextNum = 1
+        while (existingNumbers.contains(nextNum)) {
+            nextNum++
+        }
+
+        val newCallsign = String.format("HOST-%02d", nextNum)
+        inMemoryCallsignMap[uniqueKey] = newCallsign
+        if (model.isNotBlank() && model != "Unknown") {
+            inMemoryCallsignMap[model] = newCallsign
+        }
+        saveCallsignMapping()
+        return newCallsign
+    }
+
     private fun serializeDevices(devices: Collection<Device>): String {
         return try {
             val arr = JSONArray()
@@ -108,6 +206,7 @@ class DeviceRepositoryImpl(
                     put("deviceName", d.deviceName)
                     put("appVersion", d.appVersion)
                     put("model", d.model)
+                    put("callsign", d.callsign)
                     val loc = d.latestLocation
                     if (loc != null) {
                         val locObj = JSONObject().apply {
@@ -151,10 +250,21 @@ class DeviceRepositoryImpl(
                     )
                 } else null
 
+                val model = obj.optString("model", "")
+                val deviceId = obj.getString("deviceId")
+                val connectionId = obj.optString("connectionId", "")
+                val uniqueKey = when {
+                    model.isNotBlank() && model != "Unknown" -> "${deviceId}_${model}"
+                    connectionId.isNotBlank() -> "${deviceId}_${connectionId}"
+                    else -> deviceId
+                }
+                val rawCallsign = obj.optString("callsign", "")
+                val callsign = getOrCreateCallsign(uniqueKey, model, preferredCallsign = rawCallsign)
+
                 list.add(
                     Device(
-                        deviceId = obj.getString("deviceId"),
-                        connectionId = obj.optString("connectionId", ""),
+                        deviceId = deviceId,
+                        connectionId = connectionId,
                         authenticated = obj.optBoolean("authenticated", true),
                         registered = obj.optBoolean("registered", true),
                         registrationState = obj.optString("registrationState", "registered"),
@@ -163,8 +273,9 @@ class DeviceRepositoryImpl(
                         lastHeartbeat = obj.optString("lastHeartbeat", ""),
                         deviceName = obj.optString("deviceName", ""),
                         appVersion = obj.optString("appVersion", ""),
-                        model = obj.optString("model", ""),
-                        latestLocation = loc
+                        model = model,
+                        latestLocation = loc,
+                        callsign = callsign
                     )
                 )
             }
@@ -313,10 +424,13 @@ class DeviceRepositoryImpl(
                 }
 
                 val resolvedLocation = existing?.latestLocation ?: if (!isEchoOfAnotherDevice) serverLoc else null
+                val callsign = existing?.callsign?.ifBlank { null }
+                    ?: getOrCreateCallsign(dev.uniqueKey, dev.model)
 
                 val merged = dev.copy(
                     latestLocation = resolvedLocation,
-                    heartbeatStatus = if (existing?.heartbeatStatus == "online") "online" else dev.heartbeatStatus
+                    heartbeatStatus = if (existing?.heartbeatStatus == "online") "online" else dev.heartbeatStatus,
+                    callsign = callsign
                 )
 
                 deviceMap[merged.uniqueKey] = merged
@@ -381,11 +495,14 @@ class DeviceRepositoryImpl(
             // Update live map with single device refresh, safely preserving established name/model if server returned blank
             _devices.update { current ->
                 val existing = current[targetKey] ?: current[deviceId]
+                val callsign = existing?.callsign?.ifBlank { null }
+                    ?: getOrCreateCallsign(device.uniqueKey, device.model)
                 val merged = if (existing != null && existing.registered && !device.registered) {
                     existing.copy(
                         heartbeatStatus = device.heartbeatStatus,
                         lastHeartbeat = if (device.lastHeartbeat.isNotBlank()) device.lastHeartbeat else existing.lastHeartbeat,
-                        latestLocation = existing.latestLocation ?: safeServerLoc
+                        latestLocation = existing.latestLocation ?: safeServerLoc,
+                        callsign = callsign
                     )
                 } else if (existing != null) {
                     existing.copy(
@@ -393,10 +510,11 @@ class DeviceRepositoryImpl(
                         lastHeartbeat = if (device.lastHeartbeat.isNotBlank()) device.lastHeartbeat else existing.lastHeartbeat,
                         latestLocation = existing.latestLocation ?: safeServerLoc,
                         deviceName = if (device.deviceName.isNotBlank()) device.deviceName else existing.deviceName,
-                        model = if (device.model.isNotBlank()) device.model else existing.model
+                        model = if (device.model.isNotBlank()) device.model else existing.model,
+                        callsign = callsign
                     )
                 } else {
-                    device.copy(latestLocation = safeServerLoc)
+                    device.copy(latestLocation = safeServerLoc, callsign = callsign)
                 }
                 val updated = current.toMutableMap()
                 updated[targetKey] = merged
@@ -486,13 +604,16 @@ class DeviceRepositoryImpl(
                         current.values.find { it.deviceId == event.deviceId }?.uniqueKey ?: event.deviceId
                     }
                     val existing = current[key] ?: current[event.deviceId]
+                    val resolvedModel = event.model?.takeIf { it.isNotBlank() } ?: existing?.model ?: ""
+                    val callsign = existing?.callsign?.ifBlank { null } ?: getOrCreateCallsign(key, resolvedModel)
                     val patched = existing?.copy(
                         heartbeatStatus = "online",
                         registered = true,
                         registrationState = "registered",
                         deviceName = event.deviceName?.takeIf { it.isNotBlank() } ?: existing.deviceName,
                         appVersion = event.appVersion?.takeIf { it.isNotBlank() } ?: existing.appVersion,
-                        model = event.model?.takeIf { it.isNotBlank() } ?: existing.model
+                        model = resolvedModel,
+                        callsign = callsign
                     ) ?: createMinimalDevice(event)
 
                     val updated = current.toMutableMap()
@@ -914,6 +1035,9 @@ class DeviceRepositoryImpl(
                 timeZone = java.util.TimeZone.getTimeZone("UTC")
             }.format(java.util.Date())
 
+            val existingCallsign = existing?.callsign?.ifBlank { null }
+            val callsign = existingCallsign ?: getOrCreateCallsign(targetKey, model ?: "")
+
             val patched = (existing ?: Device(
                 deviceId = deviceId,
                 connectionId = "",
@@ -926,12 +1050,14 @@ class DeviceRepositoryImpl(
                 deviceName = model ?: deviceId,
                 appVersion = "",
                 model = model ?: "",
-                latestLocation = updatedLocation
+                latestLocation = updatedLocation,
+                callsign = callsign
             )).copy(
                 latestLocation = updatedLocation,
                 heartbeatStatus = "online",
                 lastHeartbeat = currentUtc,
-                model = model ?: existing?.model ?: ""
+                model = model ?: existing?.model ?: "",
+                callsign = callsign
             )
 
             val updated = current.toMutableMap()
@@ -956,6 +1082,9 @@ class DeviceRepositoryImpl(
      * for a device not yet in the map (e.g., connected after initial REST load).
      */
     private fun createMinimalDevice(event: DeviceUpdateEvent.DeviceConnected): Device {
+        val model = event.model ?: ""
+        val uniqueKey = if (model.isNotBlank()) "${event.deviceId}_$model" else event.deviceId
+        val callsign = getOrCreateCallsign(uniqueKey, model)
         return Device(
             deviceId = event.deviceId,
             connectionId = "",
@@ -967,8 +1096,9 @@ class DeviceRepositoryImpl(
             lastHeartbeat = "",
             deviceName = event.deviceName?.takeIf { it.isNotBlank() } ?: event.deviceId,
             appVersion = event.appVersion ?: "",
-            model = event.model ?: "",
-            latestLocation = null
+            model = model,
+            latestLocation = null,
+            callsign = callsign
         )
     }
 

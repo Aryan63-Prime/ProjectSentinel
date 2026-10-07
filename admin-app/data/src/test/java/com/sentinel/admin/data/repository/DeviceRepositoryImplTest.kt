@@ -270,6 +270,22 @@ class DeviceRepositoryImplTest {
         assertEquals("2026-07-09T12:00:10Z", loc.recordedAt)
     }
 
+    @Test
+    fun `sequential callsigns assigned to discovered devices`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(DEVICES_RESPONSE_MULTIPLE)
+        )
+
+        val devices = repo.getDevices().getOrThrow()
+        assertEquals(2, devices.size)
+        assertEquals("HOST-01", devices[0].callsign)
+        assertEquals("HOST-02", devices[1].callsign)
+        assertEquals("HOST-01", devices[0].displayId)
+        assertEquals("HOST-02", devices[1].displayId)
+    }
+
     // ============================================================
     // Test data
     // ============================================================

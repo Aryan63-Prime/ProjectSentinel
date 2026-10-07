@@ -118,7 +118,7 @@ fun DeviceDetailScreen(
                     Column {
                         Text(
                             text = uiState.device?.let { device ->
-                                device.deviceName.ifBlank { device.model.ifBlank { "Device ${device.deviceId}" } }
+                                device.deviceName.ifBlank { device.model.ifBlank { "Device ${device.displayId}" } }
                             } ?: "Device Details",
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFFF0F2F4),
@@ -126,7 +126,7 @@ fun DeviceDetailScreen(
                         )
                         uiState.device?.let { dev ->
                             Text(
-                                text = "${dev.model} · ${dev.deviceId}",
+                                text = "${dev.model} · ${dev.displayId}",
                                 fontSize = 11.sp,
                                 fontFamily = FontFamily.Monospace,
                                 color = Color(0xFF8FB2D8)
@@ -452,7 +452,7 @@ private fun StatusHeader(
     isOnline: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val displayName = device.deviceName.ifBlank { device.model.ifBlank { "Device ${device.deviceId}" } }
+    val displayName = device.deviceName.ifBlank { device.model.ifBlank { "Device ${device.displayId}" } }
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -509,7 +509,7 @@ private fun StatusHeader(
                 }
                 Spacer(modifier = Modifier.height(9.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    DeviceTag(text = device.deviceId)
+                    DeviceTag(text = device.displayId)
                     DeviceTag(text = if (device.authenticated) "SECURE LINK" else "UNVERIFIED")
                 }
             }
@@ -652,7 +652,8 @@ private fun DeviceConnectionCard(device: Device, isOnline: Boolean) {
             InfoRow("Last seen", formatTimestamp(device.lastHeartbeat))
             androidx.compose.animation.AnimatedVisibility(visible = expanded) {
                 Column {
-                    InfoRow("Device ID", device.deviceId)
+                    InfoRow("Callsign", device.displayId)
+                    InfoRow("Device Token", device.deviceId)
                     InfoRow("Registration", device.registrationState.replaceFirstChar { it.uppercase() })
                     InfoRow("Connected", formatTimestamp(device.connectedAt))
                     Row(

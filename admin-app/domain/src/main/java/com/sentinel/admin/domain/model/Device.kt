@@ -30,7 +30,8 @@ data class Device(
     val deviceName: String,
     val appVersion: String,
     val model: String,
-    val latestLocation: DeviceLocation?
+    val latestLocation: DeviceLocation?,
+    val callsign: String = ""
 ) {
     /** Unique identity for UI rendering and tracking across sessions when devices share a deviceId token. */
     val uniqueKey: String
@@ -39,4 +40,8 @@ data class Device(
             connectionId.isNotBlank() -> "${deviceId}_${connectionId}"
             else -> deviceId
         }
+
+    /** Display identity: sequential fleet callsign (HOST-01, HOST-02...) if assigned, otherwise deviceId. */
+    val displayId: String
+        get() = callsign.ifBlank { deviceId }
 }

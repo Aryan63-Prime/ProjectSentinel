@@ -355,7 +355,8 @@ class DeviceDetailViewModel @Inject constructor(
                 }
                 put("data", data)
             }
-            webSocketDataSource.sendText(targetedJson.toString())
+            val targetedPayload = try { targetedJson.toString() } catch (_: Exception) { "{}" } ?: "{}"
+            webSocketDataSource.sendText(targetedPayload)
         }
     }
 

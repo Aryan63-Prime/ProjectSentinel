@@ -407,7 +407,7 @@ class DeviceDetailViewModelTest {
 
         viewModel.onListenClick()
         assertEquals(1, fakeAudioRepo.listenCalls.size)
-        assertEquals("HOST-0001", fakeAudioRepo.listenCalls[0])
+        assertEquals("CONN-001", fakeAudioRepo.listenCalls[0])
     }
 
     @Test
@@ -417,7 +417,7 @@ class DeviceDetailViewModelTest {
 
         viewModel.onStopClick()
         assertEquals(1, fakeAudioRepo.stopCalls.size)
-        assertEquals("HOST-0001", fakeAudioRepo.stopCalls[0])
+        assertEquals("CONN-001", fakeAudioRepo.stopCalls[0])
     }
 
     // ============================================================

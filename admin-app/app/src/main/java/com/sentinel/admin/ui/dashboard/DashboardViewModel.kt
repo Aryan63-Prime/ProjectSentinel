@@ -170,6 +170,7 @@ class DashboardViewModel @Inject constructor(
         return devices.filter { device ->
             device.deviceName.lowercase().contains(q) ||
                     device.deviceId.lowercase().contains(q) ||
+                    device.callsign.lowercase().contains(q) ||
                     device.model.lowercase().contains(q)
         }
     }

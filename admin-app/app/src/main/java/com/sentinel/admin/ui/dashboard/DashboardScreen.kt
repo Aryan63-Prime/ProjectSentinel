@@ -520,7 +520,7 @@ private fun DeviceCard(
                         height = 66.dp,
                         model = "${device.model} ${device.deviceName}"
                     )
-                    val displayName = device.deviceName.ifBlank { device.model.ifBlank { "Unit ${device.deviceId}" } }
+                    val displayName = device.deviceName.ifBlank { device.model.ifBlank { "Unit ${device.displayId}" } }
                     val displayModel = device.model.ifBlank { "Mobile Unit" }
                     Column {
                         Text(
@@ -544,7 +544,7 @@ private fun DeviceCard(
                                 color = Color(0xFF7D8997)
                             )
                             Text(
-                                text = device.deviceId,
+                                text = device.displayId,
                                 fontSize = 11.sp,
                                 fontFamily = FontFamily.Monospace,
                                 color = Color(0xFF7D8997)
