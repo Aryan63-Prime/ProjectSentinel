@@ -64,6 +64,18 @@ sealed interface IncomingMessage {
         val path: String
     ) : IncomingMessage
 
+    data class Listen(
+        override val type: String,
+        override val sequence: Long,
+        val deviceId: String = ""
+    ) : IncomingMessage
+
+    data class Stop(
+        override val type: String,
+        override val sequence: Long,
+        val deviceId: String = ""
+    ) : IncomingMessage
+
     data class Unknown(
         override val type: String,
         override val sequence: Long

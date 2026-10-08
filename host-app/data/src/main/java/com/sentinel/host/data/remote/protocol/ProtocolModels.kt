@@ -132,3 +132,29 @@ internal data class FileStopReqJson(
     val type: String = "",
     val data: FileStopReqDataJson = FileStopReqDataJson()
 )
+
+// ============================================================
+// Audio Control Messages
+// ============================================================
+
+@JsonClass(generateAdapter = true)
+internal data class ListenDataJson(
+    val deviceId: String = ""
+)
+
+@JsonClass(generateAdapter = true)
+internal data class ListenMessageJson(
+    val type: String = "",
+    val data: ListenDataJson = ListenDataJson()
+)
+
+@JsonClass(generateAdapter = true)
+internal data class StopDataJson(
+    val deviceId: String = ""
+)
+
+@JsonClass(generateAdapter = true)
+internal data class StopMessageJson(
+    val type: String = "",
+    val data: StopDataJson = StopDataJson()
+)

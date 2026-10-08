@@ -24,6 +24,8 @@ class BootReceiver : BroadcastReceiver() {
 
         // Schedule WorkManager watchdog as safety net
         SentinelWatchdogWorker.schedule(context)
+        // Schedule exact-while-idle rolling watchdog alarm
+        SentinelWatchdogReceiver.scheduleNext(context)
 
         // Direct foreground service start
         try {

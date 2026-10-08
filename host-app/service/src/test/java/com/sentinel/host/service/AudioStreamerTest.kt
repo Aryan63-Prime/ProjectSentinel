@@ -211,6 +211,42 @@ class AudioStreamerTest {
         assertFalse(streamer.isInterruptedByCall)
         assertFalse(pipeline.isRunning)
     }
+
+    @Test
+    fun `session timeout stops streaming and invokes callback`() = runTest {
+        val testScope = this
+        val timedStreamer = AudioStreamer(
+            audioRepository = audioRepo,
+            pipeline = pipeline,
+            scope = testScope
+        )
+        var timedOut = false
+        timedStreamer.onSessionTimeout = { timedOut = true }
+        timedStreamer.hasPermission = true
+        timedStreamer.start(maxDurationSeconds = 1L)
+        assertTrue(pipeline.isRunning)
+
+        testScheduler.advanceTimeBy(1500L)
+        advanceUntilIdle()
+
+        assertFalse(pipeline.isRunning)
+        assertTrue(timedOut)
+    }
+
+    @Test
+    fun `lifecycle callbacks are invoked on start and stop`() {
+        var started = false
+        var stopped = false
+        streamer.onSessionStarted = { started = true }
+        streamer.onSessionStopped = { stopped = true }
+        streamer.hasPermission = true
+
+        streamer.start()
+        assertTrue(started)
+
+        streamer.stop()
+        assertTrue(stopped)
+    }
 }
 
 // ================================================================

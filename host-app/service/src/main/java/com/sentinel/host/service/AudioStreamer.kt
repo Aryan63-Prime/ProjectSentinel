@@ -5,8 +5,10 @@ import com.sentinel.host.data.audio.AudioPipeline
 import com.sentinel.host.data.repository.AudioRepositoryImpl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 
 /**
  * Orchestrates audio streaming tied to the connection lifecycle.
@@ -76,6 +78,16 @@ open class AudioStreamer(
         }
     }
 
+    /** Default maximum duration for an on-demand listening session (5 minutes). */
+    val defaultMaxDurationSeconds: Long = 300L
+
+    private var timeoutJob: Job? = null
+
+    /** Callbacks invoked when audio streaming session starts, stops, or times out. */
+    var onSessionStarted: (() -> Unit)? = null
+    var onSessionStopped: (() -> Unit)? = null
+    var onSessionTimeout: (() -> Unit)? = null
+
     /** Whether RECORD_AUDIO permission has been granted. Set by the UI/permission layer. */
     @Volatile
     var hasPermission: Boolean = false
@@ -86,8 +98,9 @@ open class AudioStreamer(
     /**
      * Starts audio capture and begins streaming frames.
      * No-op if [hasPermission] is false.
+     * Automatically stops and releases mic if [maxDurationSeconds] expires.
      */
-    fun start() {
+    fun start(maxDurationSeconds: Long = defaultMaxDurationSeconds) {
         if (!hasPermission) {
             Log.w(TAG, "No RECORD_AUDIO permission — skipping start")
             return
@@ -104,30 +117,47 @@ open class AudioStreamer(
             .onEach { frame -> audioRepository.sendFrame(frame) }
             .launchIn(scope)
 
-        Log.i(TAG, "Audio streaming started")
+        if (maxDurationSeconds > 0) {
+            timeoutJob?.cancel()
+            timeoutJob = scope.launch {
+                kotlinx.coroutines.delay(maxDurationSeconds * 1000L)
+                Log.i(TAG, "Audio session reached maximum duration ($maxDurationSeconds s) — auto-stopping mic")
+                stop()
+                onSessionTimeout?.invoke()
+            }
+        }
+
+        onSessionStarted?.invoke()
+        Log.i(TAG, "Audio streaming started (maxDuration=${maxDurationSeconds}s)")
     }
 
     /**
-     * Stops audio capture and streaming.
+     * Stops audio capture and streaming, releases hardware resources.
      */
     fun stop() {
+        timeoutJob?.cancel()
+        timeoutJob = null
         abandonAudioFocus()
         isInterruptedByCall = false
         collectJob?.cancel()
         collectJob = null
         audioRepository.stopCapture()
+        onSessionStopped?.invoke()
         Log.i(TAG, "Audio streaming stopped")
     }
 
     /**
      * Pauses audio during reconnect.
-     * Same as [stop] but semantically different for logging.
+     * Releases hardware resources during connection loss.
      */
     fun pause() {
+        timeoutJob?.cancel()
+        timeoutJob = null
         abandonAudioFocus()
         collectJob?.cancel()
         collectJob = null
         audioRepository.stopCapture()
+        onSessionStopped?.invoke()
         Log.i(TAG, "Audio streaming paused (reconnecting)")
     }
 

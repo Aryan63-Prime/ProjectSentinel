@@ -35,8 +35,10 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 
-    <!-- Wake Lock -->
+    <!-- Wake Lock & Exact Alarms -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
     <!-- System Diagnostics & Logcat -->
     <uses-permission android:name="android.permission.READ_LOGS" />
@@ -103,6 +105,16 @@
         <receiver
             android:name="com.sentinel.host.data.receiver.GeofenceBroadcastReceiver"
             android:exported="false" />
+
+        <!-- Exact-While-Idle Watchdog Rolling Alarm Receiver -->
+        <receiver
+            android:name=".receiver.SentinelWatchdogReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.sentinel.host.action.WATCHDOG_TICK" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".service.SentinelForegroundService"

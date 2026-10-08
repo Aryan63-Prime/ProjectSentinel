@@ -92,6 +92,10 @@ class ConnectionSupervisor(
     private var reconnectJob: Job? = null
     private var heartbeatObserveJob: Job? = null
 
+    /** Callbacks for on-demand audio streaming session lifecycle. */
+    var onStartAudioRequested: ((sequence: Long, deviceId: String) -> Unit)? = null
+    var onStopAudioRequested: ((sequence: Long, deviceId: String) -> Unit)? = null
+
     /** True when the user explicitly called [stop]. Prevents auto-reconnect. */
     @Volatile
     private var userRequestedDisconnect = false
@@ -181,6 +185,18 @@ class ConnectionSupervisor(
                 previousState
             }
 
+            is ConnectionEvent.StartAudio -> {
+                Log.i(TAG, "StartAudio event received from server (seq=${event.sequence}, dev=${event.deviceId})")
+                onStartAudioRequested?.invoke(event.sequence, event.deviceId)
+                previousState
+            }
+
+            is ConnectionEvent.StopAudio -> {
+                Log.i(TAG, "StopAudio event received from server (seq=${event.sequence}, dev=${event.deviceId})")
+                onStopAudioRequested?.invoke(event.sequence, event.deviceId)
+                previousState
+            }
+
             is ConnectionEvent.HeartbeatAck -> {
                 heartbeatScheduler.onAckReceived()
                 previousState
@@ -257,25 +273,39 @@ class ConnectionSupervisor(
     // ================================================================
 
     /**
+     * Forces immediate reconnection without backoff delay.
+     * Essential for FCM push-to-wake and watchdog revival.
+     */
+    fun forceReconnect() {
+        Log.i(TAG, "Force reconnect requested (FCM wake / watchdog punch)")
+        userRequestedDisconnect = false
+        reconnectJob?.cancel()
+        reconnectJob = null
+        startReconnectLoop(initialAttempt = 0, immediateFirst = true)
+    }
+
+    /**
      * Starts the reconnect loop with exponential backoff.
      * Guards against duplicate concurrent attempts.
      */
-    private fun startReconnectLoop() {
+    private fun startReconnectLoop(initialAttempt: Int = 0, immediateFirst: Boolean = false) {
         if (reconnectJob?.isActive == true) {
             Log.d(TAG, "Reconnect already in progress — skipping")
             return
         }
 
         reconnectJob = scope.launch {
-            var attempt = 0
+            var attempt = initialAttempt
 
             while (reconnectPolicy.shouldRetry(attempt) && isActive) {
-                val delayMs = reconnectPolicy.getDelayMs(attempt)
+                val delayMs = if (immediateFirst && attempt == 0) 0L else reconnectPolicy.getDelayMs(attempt)
 
                 Log.i(TAG, "Reconnect attempt ${attempt + 1} in ${delayMs}ms")
                 _state.value = ConnectionState.Reconnecting(attempt + 1)
 
-                delay(delayMs)
+                if (delayMs > 0) {
+                    delay(delayMs)
+                }
 
                 // Wait for network if unavailable
                 if (!networkObserver.isAvailable.value) {
@@ -372,7 +402,7 @@ class ConnectionSupervisor(
         heartbeatScheduler.reset()
         heartbeatScheduler.start()
         locationStreamer.start()
-        audioStreamer.start()
+        // Audio capture is purely on-demand to protect privacy indicator and battery
 
         // Flush offline Room SQLite telemetry buffer
         scope.launch {

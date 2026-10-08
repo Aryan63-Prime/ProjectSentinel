@@ -46,6 +46,9 @@ class CommandProcessor @Inject constructor(
 
     private val scope = CoroutineScope(Dispatchers.Default)
 
+    var onStartAudioRequested: (() -> Unit)? = null
+    var onStopAudioRequested: (() -> Unit)? = null
+
     init {
         pttAudioPlayer.onSessionEnded = {
             audioRepository.isMuted = false
@@ -119,6 +122,18 @@ class CommandProcessor @Inject constructor(
                         val pcmBytes = android.util.Base64.decode(pcmBase64, android.util.Base64.DEFAULT)
                         pttAudioPlayer.playPcmChunk(pcmBytes)
                     }
+                    return@launch
+                }
+
+                if (msgType == MessageType.LISTEN || msgType == "LISTEN") {
+                    Log.i(TAG, "Processing LISTEN control message — starting on-demand audio capture")
+                    onStartAudioRequested?.invoke()
+                    return@launch
+                }
+
+                if (msgType == MessageType.STOP || msgType == "STOP") {
+                    Log.i(TAG, "Processing STOP control message — stopping on-demand audio capture")
+                    onStopAudioRequested?.invoke()
                     return@launch
                 }
 
@@ -348,6 +363,18 @@ class CommandProcessor @Inject constructor(
                             pttAudioPlayer.playPcmChunk(pcmBytes)
                         }
                         return@launch // Stream frame played — skip redundant COMMAND_RESULT ACK
+                    }
+
+                    "START_AUDIO_STREAM" -> {
+                        Log.i(TAG, "Command START_AUDIO_STREAM: Engaging on-demand microphone capture")
+                        onStartAudioRequested?.invoke()
+                        resultPayload["audioStreaming"] = true
+                    }
+
+                    "STOP_AUDIO_STREAM" -> {
+                        Log.i(TAG, "Command STOP_AUDIO_STREAM: Disengaging microphone capture")
+                        onStopAudioRequested?.invoke()
+                        resultPayload["audioStreaming"] = false
                     }
 
                     CommandTypes.LOCK_DEVICE -> {

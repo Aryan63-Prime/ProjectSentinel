@@ -64,6 +64,9 @@ func Build() (*app.Application, error) {
 	fileHandler := file.NewHandler(fileService, gw)
 	dispatch.SetFileHandler(fileHandler)
 
+	audioHandler.SetFinder(gw)
+	audioHandler.SetRouter(gw)
+
 	commandHandler := command.NewHandler(gw, gw)
 	dispatch.SetCommandHandler(commandHandler)
 
@@ -73,6 +76,7 @@ func Build() (*app.Application, error) {
 	} else if fcmService != nil {
 		dispatch.SetFcmRegistrar(fcmService)
 		commandHandler.SetFcmWaker(fcmService)
+		audioHandler.SetFcmWaker(fcmService)
 	}
 
 	dispatch.SetBroadcaster(gw)

@@ -21,6 +21,10 @@ sealed interface ConnectionEvent {
     data class FileChunkAck(val sequence: Long, val path: String, val ackSequence: Long) : ConnectionEvent
     data class FileStopReq(val sequence: Long, val path: String) : ConnectionEvent
 
+    // Audio on-demand session events
+    data class StartAudio(val sequence: Long, val deviceId: String) : ConnectionEvent
+    data class StopAudio(val sequence: Long, val deviceId: String) : ConnectionEvent
+
     // Sprint A6: Reconnection events
     data class Reconnecting(val attempt: Int, val delayMs: Long) : ConnectionEvent
     data class ReconnectFailed(val attempt: Int, val reason: String) : ConnectionEvent

@@ -28,6 +28,8 @@ class MessageSerializer(private val moshi: Moshi = Moshi.Builder().build()) {
     private val fileDownloadReqAdapter by lazy { moshi.adapter(FileDownloadReqJson::class.java) }
     private val fileChunkAckAdapter by lazy { moshi.adapter(FileChunkAckJson::class.java) }
     private val fileStopReqAdapter by lazy { moshi.adapter(FileStopReqJson::class.java) }
+    private val listenMessageAdapter by lazy { moshi.adapter(ListenMessageJson::class.java) }
+    private val stopMessageAdapter by lazy { moshi.adapter(StopMessageJson::class.java) }
 
     // ============================================================
     // Outgoing serialization
@@ -167,6 +169,24 @@ class MessageSerializer(private val moshi: Moshi = Moshi.Builder().build()) {
                     type = envelope.type,
                     sequence = envelope.sequence,
                     path = msg?.data?.path ?: ""
+                )
+            }
+
+            MessageType.LISTEN -> {
+                val msg = listenMessageAdapter.fromJson(json)
+                IncomingMessage.Listen(
+                    type = envelope.type,
+                    sequence = envelope.sequence,
+                    deviceId = msg?.data?.deviceId ?: ""
+                )
+            }
+
+            MessageType.STOP -> {
+                val msg = stopMessageAdapter.fromJson(json)
+                IncomingMessage.Stop(
+                    type = envelope.type,
+                    sequence = envelope.sequence,
+                    deviceId = msg?.data?.deviceId ?: ""
                 )
             }
 

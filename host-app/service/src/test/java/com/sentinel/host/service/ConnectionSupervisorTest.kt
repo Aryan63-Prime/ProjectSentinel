@@ -460,6 +460,52 @@ class ConnectionSupervisorTest {
         supervisor.stop()
         assertFalse(fakeLocationProvider.isActive)
     }
+
+    @Test
+    fun `StartAudio event invokes onStartAudioRequested callback`() {
+        startAndActivate()
+        var requestedSeq: Long? = null
+        var requestedDev: String? = null
+        supervisor.onStartAudioRequested = { seq, dev ->
+            requestedSeq = seq
+            requestedDev = dev
+        }
+
+        emit(ConnectionEvent.StartAudio(sequence = 99L, deviceId = "HOST-001"))
+
+        assertEquals(99L, requestedSeq)
+        assertEquals("HOST-001", requestedDev)
+    }
+
+    @Test
+    fun `StopAudio event invokes onStopAudioRequested callback`() {
+        startAndActivate()
+        var requestedSeq: Long? = null
+        var requestedDev: String? = null
+        supervisor.onStopAudioRequested = { seq, dev ->
+            requestedSeq = seq
+            requestedDev = dev
+        }
+
+        emit(ConnectionEvent.StopAudio(sequence = 100L, deviceId = "HOST-001"))
+
+        assertEquals(100L, requestedSeq)
+        assertEquals("HOST-001", requestedDev)
+    }
+
+    @Test
+    fun `forceReconnect attempts immediate reconnection`() {
+        startAndActivate()
+        fakeSession.saveServerUrl("ws://localhost")
+        fakeSession.saveToken("test-token")
+
+        supervisor.forceReconnect()
+        testScope.advanceTimeBy(1)
+
+        val state = supervisor.state.value
+        assertTrue(state is ConnectionState.Reconnecting)
+        supervisor.stop()
+    }
 }
 
 // ================================================================

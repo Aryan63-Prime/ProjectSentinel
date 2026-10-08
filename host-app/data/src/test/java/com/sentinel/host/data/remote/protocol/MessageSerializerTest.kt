@@ -181,6 +181,26 @@ class MessageSerializerTest {
         assertTrue(msg is IncomingMessage.Unknown)
     }
 
+    @Test
+    fun `deserialize LISTEN`() {
+        val json = """{"type":"LISTEN","version":1,"timestamp":0,"sequence":7,"data":{"deviceId":"HOST-001"}}"""
+        val msg = serializer.deserialize(json)
+        assertTrue(msg is IncomingMessage.Listen)
+        val listen = msg as IncomingMessage.Listen
+        assertEquals("HOST-001", listen.deviceId)
+        assertEquals(7L, listen.sequence)
+    }
+
+    @Test
+    fun `deserialize STOP`() {
+        val json = """{"type":"STOP","version":1,"timestamp":0,"sequence":8,"data":{"deviceId":"HOST-001"}}"""
+        val msg = serializer.deserialize(json)
+        assertTrue(msg is IncomingMessage.Stop)
+        val stop = msg as IncomingMessage.Stop
+        assertEquals("HOST-001", stop.deviceId)
+        assertEquals(8L, stop.sequence)
+    }
+
     // ============================================================
     // Round-trip verification
     // ============================================================

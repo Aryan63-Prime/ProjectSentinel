@@ -66,7 +66,7 @@ class SentinelFcmService : FirebaseMessagingService() {
                     Log.i(TAG, "FCM: Awakening Sentinel Foreground Service and restoring network connection...")
 
                     val serviceIntent = Intent(applicationContext, SentinelForegroundService::class.java).apply {
-                        this.action = SentinelForegroundService.ACTION_START
+                        this.action = SentinelForegroundService.ACTION_WAKE
                         putExtra("EXTRA_FROM_FCM_WAKE", true)
                         putExtra("EXTRA_FCM_ACTION", action)
                         putExtra("EXTRA_FCM_TIMESTAMP", timestamp)
@@ -76,15 +76,15 @@ class SentinelFcmService : FirebaseMessagingService() {
                 }
                 else -> {
                     Log.w(TAG, "FCM: Unhandled push action received: $action")
+                    try {
+                        if (wakeLock?.isHeld == true) wakeLock.release()
+                    } catch (_: Exception) {}
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "FCM: Error processing push wakeup: ${e.message}", e)
-        } finally {
             try {
-                if (wakeLock?.isHeld == true) {
-                    wakeLock.release()
-                }
+                if (wakeLock?.isHeld == true) wakeLock.release()
             } catch (_: Exception) {}
         }
     }

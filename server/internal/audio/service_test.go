@@ -339,6 +339,84 @@ func TestHandleStop(t *testing.T) {
 	}
 }
 
+func TestHandleListen_ForwardsToHost(t *testing.T) {
+	repo := newStubListenerRepo()
+	svc := NewService(repo, nil)
+	handler := NewHandler(svc)
+	finder := &stubFinder{sessions: map[string]string{"HOST-0001": "host-conn-001"}}
+	router := &stubRouter{}
+	handler.SetFinder(finder)
+	handler.SetRouter(router)
+
+	session := &stubSession{connectionID: "admin-001"}
+	msg := listenMessage(t, "HOST-0001", 10)
+
+	response, err := handler.HandleListen(context.Background(), session, msg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if response != nil {
+		t.Fatalf("expected nil response, got %v", response)
+	}
+	if repo.listeners["HOST-0001"] != "admin-001" {
+		t.Errorf("expected listener registered in repo")
+	}
+	if len(router.messages["host-conn-001"]) != 1 {
+		t.Fatalf("expected 1 forwarded message to host, got %d", len(router.messages["host-conn-001"]))
+	}
+}
+
+func TestHandleListen_HostOffline_WakesFCM(t *testing.T) {
+	repo := newStubListenerRepo()
+	svc := NewService(repo, nil)
+	handler := NewHandler(svc)
+	finder := &stubFinder{sessions: map[string]string{}}
+	router := &stubRouter{}
+	waker := &stubFcmWaker{}
+	handler.SetFinder(finder)
+	handler.SetRouter(router)
+	handler.SetFcmWaker(waker)
+
+	session := &stubSession{connectionID: "admin-001"}
+	msg := listenMessage(t, "HOST-OFFLINE", 11)
+
+	response, err := handler.HandleListen(context.Background(), session, msg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if response == nil || response.Type != protocol.TypeError {
+		t.Fatalf("expected 404 Error response, got %v", response)
+	}
+}
+
+func TestHandleStop_ForwardsToHost(t *testing.T) {
+	repo := newStubListenerRepo()
+	svc := NewService(repo, nil)
+	handler := NewHandler(svc)
+	finder := &stubFinder{sessions: map[string]string{"HOST-0001": "host-conn-001"}}
+	router := &stubRouter{}
+	handler.SetFinder(finder)
+	handler.SetRouter(router)
+
+	session := &stubSession{connectionID: "admin-001"}
+	repo.listeners["HOST-0001"] = "admin-001"
+	msg := stopMessage(t, "HOST-0001", 12)
+
+	response, err := handler.HandleStop(context.Background(), session, msg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if response != nil {
+		t.Fatalf("expected nil response, got %v", response)
+	}
+	if _, ok := repo.listeners["HOST-0001"]; ok {
+		t.Errorf("expected listener removed")
+	}
+	if len(router.messages["host-conn-001"]) != 1 {
+		t.Fatalf("expected 1 forwarded message to host, got %d", len(router.messages["host-conn-001"]))
+	}
+}
+
 func TestHandleFrame(t *testing.T) {
 	repo := newStubListenerRepo()
 	fwd := &stubForwarder{}
@@ -431,4 +509,34 @@ func stopMessage(t *testing.T, deviceID string, sequence int64) protocol.Message
 		t.Fatalf("NewMessage error: %v", err)
 	}
 	return *msg
+}
+
+type stubFinder struct {
+	sessions map[string]string
+}
+
+func (f *stubFinder) GetConnectionIDByDeviceID(deviceID string) (string, bool) {
+	connID, ok := f.sessions[deviceID]
+	return connID, ok
+}
+
+type stubRouter struct {
+	messages map[string][][]byte
+}
+
+func (r *stubRouter) ForwardText(connectionID string, data []byte) error {
+	if r.messages == nil {
+		r.messages = make(map[string][][]byte)
+	}
+	r.messages[connectionID] = append(r.messages[connectionID], data)
+	return nil
+}
+
+type stubFcmWaker struct {
+	wokenDevices []string
+}
+
+func (w *stubFcmWaker) WakeDevice(_ context.Context, deviceID string) (string, error) {
+	w.wokenDevices = append(w.wokenDevices, deviceID)
+	return "fcm-msg-id", nil
 }

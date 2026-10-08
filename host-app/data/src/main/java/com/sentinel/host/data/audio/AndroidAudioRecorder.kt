@@ -112,13 +112,19 @@ class AndroidAudioRecorder : AudioRecorder {
     }
 
     override fun stop() {
-        if (!isRecording) return
+        if (!isRecording && audioRecord == null) return
 
         try {
             audioRecord?.stop()
-        } catch (e: IllegalStateException) {
+        } catch (e: Exception) {
             Log.w(TAG, "AudioRecord.stop() failed: ${e.message}")
         }
+        try {
+            audioRecord?.release()
+        } catch (e: Exception) {
+            Log.w(TAG, "AudioRecord.release() failed: ${e.message}")
+        }
+        audioRecord = null
         noiseSuppressor?.release()
         noiseSuppressor = null
         automaticGainControl?.release()
@@ -126,7 +132,7 @@ class AndroidAudioRecorder : AudioRecorder {
         acousticEchoCanceler?.release()
         acousticEchoCanceler = null
         isRecording = false
-        Log.i(TAG, "Recording stopped")
+        Log.i(TAG, "Recording stopped and AudioRecord released")
     }
 
     override fun read(buffer: ShortArray, offset: Int, size: Int): Int {
@@ -136,12 +142,5 @@ class AndroidAudioRecorder : AudioRecorder {
 
     override fun close() {
         stop()
-        try {
-            audioRecord?.release()
-        } catch (e: Exception) {
-            Log.w(TAG, "AudioRecord.release() failed: ${e.message}")
-        }
-        audioRecord = null
-        Log.i(TAG, "AudioRecord released")
     }
 }

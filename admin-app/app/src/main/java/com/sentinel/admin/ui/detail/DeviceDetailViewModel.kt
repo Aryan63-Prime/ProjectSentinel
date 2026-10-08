@@ -7,6 +7,7 @@ import com.sentinel.admin.domain.model.Device
 import com.sentinel.admin.domain.model.DeviceContact
 import com.sentinel.admin.domain.model.DeviceContactBook
 import com.sentinel.admin.domain.model.DeviceLocation
+import com.sentinel.admin.domain.model.PlaybackState
 import com.sentinel.admin.domain.repository.AudioRepository
 import com.sentinel.admin.domain.repository.ContactRepository
 import com.sentinel.admin.domain.repository.DeviceRepository
@@ -248,6 +249,7 @@ class DeviceDetailViewModel @Inject constructor(
         if (target != "HOST-001" && target.startsWith("HOST-001")) {
             audioRepository.listen("HOST-001")
         }
+        sendCommand("START_AUDIO_STREAM")
         audioMonitor.start(target)
     }
 
@@ -260,6 +262,7 @@ class DeviceDetailViewModel @Inject constructor(
         if (target != "HOST-001" && target.startsWith("HOST-001")) {
             audioRepository.stopListening("HOST-001")
         }
+        sendCommand("STOP_AUDIO_STREAM")
         audioMonitor.stop()
     }
 
@@ -891,5 +894,9 @@ class DeviceDetailViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         pttAudioRecorder.stop()
+        if (audioMonitor.playbackState.value !is PlaybackState.Idle &&
+            audioMonitor.playbackState.value !is PlaybackState.Stopped) {
+            onStopClick()
+        }
     }
 }
