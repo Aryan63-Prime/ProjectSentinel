@@ -60,17 +60,6 @@ func (s *Service) StartListening(ctx context.Context, adminConnectionID string, 
 		return err
 	}
 
-	// Register aliases so both generic token and distinct hardware callsigns route correctly
-	if strings.HasPrefix(cleanTarget, "HOST-001-") {
-		_ = s.listeners.SetListener(ctx, "HOST-001", adminConnectionID)
-		suffix := strings.TrimPrefix(cleanTarget, "HOST-001-")
-		_ = s.listeners.SetListener(ctx, "HOST-"+suffix, adminConnectionID)
-	}
-	if strings.Contains(cleanTarget, "_") {
-		base := strings.SplitN(cleanTarget, "_", 2)[0]
-		_ = s.listeners.SetListener(ctx, base, adminConnectionID)
-	}
-
 	return nil
 }
 
@@ -86,15 +75,6 @@ func (s *Service) StopListening(ctx context.Context, targetDeviceID string) erro
 	}
 
 	_ = s.listeners.RemoveListener(ctx, cleanTarget)
-	if strings.HasPrefix(cleanTarget, "HOST-001-") {
-		_ = s.listeners.RemoveListener(ctx, "HOST-001")
-		suffix := strings.TrimPrefix(cleanTarget, "HOST-001-")
-		_ = s.listeners.RemoveListener(ctx, "HOST-"+suffix)
-	}
-	if strings.Contains(cleanTarget, "_") {
-		base := strings.SplitN(cleanTarget, "_", 2)[0]
-		_ = s.listeners.RemoveListener(ctx, base)
-	}
 
 	return nil
 }
@@ -113,16 +93,6 @@ func (s *Service) RouteFrame(ctx context.Context, sourceDeviceID string, frame [
 	connectionID, found, err := s.listeners.GetListener(ctx, sourceDeviceID)
 	if err != nil {
 		return fmt.Errorf("get listener: %w", err)
-	}
-	if !found {
-		// Fallback to base "HOST-001" listener
-		if strings.HasPrefix(sourceDeviceID, "HOST-001") {
-			connectionID, found, _ = s.listeners.GetListener(ctx, "HOST-001")
-		}
-	}
-	if !found && strings.Contains(sourceDeviceID, "_") {
-		base := strings.SplitN(sourceDeviceID, "_", 2)[0]
-		connectionID, found, _ = s.listeners.GetListener(ctx, base)
 	}
 	if !found {
 		return nil

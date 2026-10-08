@@ -56,11 +56,13 @@ class AndroidAudioRecorder : AudioRecorder {
         )
     }
 
+    private val recorderLock = Any()
+
     @SuppressLint("MissingPermission")
-    override fun start(): Boolean {
+    override fun start(): Boolean = synchronized(recorderLock) {
         if (isRecording) {
             Log.w(TAG, "Already recording — stopping first")
-            stop()
+            stopInternal()
         }
 
         if (minBufferSize == AudioRecord.ERROR || minBufferSize == AudioRecord.ERROR_BAD_VALUE) {
@@ -88,10 +90,6 @@ class AndroidAudioRecorder : AudioRecorder {
                 return false
             }
 
-            // Note: Hardware NoiseSuppressor, AcousticEchoCanceler, and AGC are automatically
-            // initialized by the OS audio hardware layer when using VOICE_COMMUNICATION source.
-            // Programmatic instantiation is skipped to avoid redundant filters causing cutouts.
-
             record.startRecording()
             isRecording = true
             Log.i(TAG, "Recording started (rate=${AudioConstants.SAMPLE_RATE}, " +
@@ -111,7 +109,11 @@ class AndroidAudioRecorder : AudioRecorder {
         }
     }
 
-    override fun stop() {
+    override fun stop() = synchronized(recorderLock) {
+        stopInternal()
+    }
+
+    private fun stopInternal() {
         if (!isRecording && audioRecord == null) return
 
         try {
@@ -137,7 +139,11 @@ class AndroidAudioRecorder : AudioRecorder {
 
     override fun read(buffer: ShortArray, offset: Int, size: Int): Int {
         val record = audioRecord ?: return -1
-        return record.read(buffer, offset, size)
+        return try {
+            record.read(buffer, offset, size)
+        } catch (e: Exception) {
+            -1
+        }
     }
 
     override fun close() {

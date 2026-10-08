@@ -34,14 +34,15 @@ class NativeOpusEncoder : OpusEncoder {
     @Volatile
     private var handle: Long = 0L
 
+    private val lock = Any()
+
     /**
      * Initializes the native Opus encoder.
      * Must be called before [encode].
      *
      * @return true if initialization succeeded.
      */
-    @Synchronized
-    fun initialize(): Boolean {
+    fun initialize(): Boolean = synchronized(lock) {
         if (handle != 0L) {
             Log.d(TAG, "Already initialized — reusing handle")
             return true
@@ -64,7 +65,7 @@ class NativeOpusEncoder : OpusEncoder {
         return true
     }
 
-    override fun encode(pcm: ShortArray, frameSize: Int, output: ByteArray, maxOutput: Int): Int {
+    override fun encode(pcm: ShortArray, frameSize: Int, output: ByteArray, maxOutput: Int): Int = synchronized(lock) {
         val h = handle
         if (h == 0L) {
             Log.e(TAG, "Encode called on closed/uninitialized encoder")
@@ -74,8 +75,7 @@ class NativeOpusEncoder : OpusEncoder {
         return OpusJni.nativeEncode(h, pcm, frameSize, output, maxOutput)
     }
 
-    @Synchronized
-    override fun close() {
+    override fun close() = synchronized(lock) {
         val h = handle
         if (h != 0L) {
             handle = 0L

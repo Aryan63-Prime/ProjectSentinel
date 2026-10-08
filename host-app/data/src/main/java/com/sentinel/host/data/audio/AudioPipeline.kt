@@ -101,6 +101,8 @@ open class AudioPipeline(
     /** Whether the pipeline is currently running. */
     val isRunning: Boolean get() = session.isActive
 
+    private val lifecycleLock = Any()
+
     /**
      * Starts the audio capture → encode pipeline.
      *
@@ -111,10 +113,10 @@ open class AudioPipeline(
      *
      * @return true if the pipeline started successfully.
      */
-    fun start(): Boolean {
+    fun start(): Boolean = synchronized(lifecycleLock) {
         if (isRunning) {
             Log.w(TAG, "Already running — stopping first")
-            stop()
+            stopInternal()
         }
 
         // Initialize encoder if it's a NativeOpusEncoder
@@ -156,7 +158,11 @@ open class AudioPipeline(
      * Stops the pipeline and releases all resources.
      * Closes the owned dispatcher to prevent thread leaks.
      */
-    fun stop() {
+    fun stop() = synchronized(lifecycleLock) {
+        stopInternal()
+    }
+
+    private fun stopInternal() {
         captureScope?.cancel()
         captureScope = null
 
@@ -196,6 +202,9 @@ open class AudioPipeline(
         while (scope.isActive) {
             // 1. Read PCM from microphone (blocking read — fills exactly SAMPLES_PER_FRAME)
             val samplesRead = recorder.read(pcmBuffer, 0, AudioConstants.SAMPLES_PER_FRAME)
+            if (!scope.isActive) {
+                break
+            }
             if (samplesRead < 0) {
                 Log.e(TAG, "AudioRecord.read() error: $samplesRead")
                 session.recordDrop()
@@ -213,6 +222,10 @@ open class AudioPipeline(
             }
             consecutiveErrors = 0
 
+            if (!scope.isActive) {
+                break
+            }
+
             // 2. Encode PCM → Opus
             val encodeStart = System.nanoTime()
             val encodedBytes = encoder.encode(
@@ -220,6 +233,10 @@ open class AudioPipeline(
                 opusBuffer, MAX_OPUS_FRAME_SIZE
             )
             val encodeTimeNs = System.nanoTime() - encodeStart
+
+            if (!scope.isActive) {
+                break
+            }
 
             if (encodedBytes <= 0) {
                 Log.w(TAG, "Opus encode failed: $encodedBytes")

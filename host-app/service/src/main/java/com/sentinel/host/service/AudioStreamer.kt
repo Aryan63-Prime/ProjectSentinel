@@ -92,21 +92,38 @@ open class AudioStreamer(
     @Volatile
     var hasPermission: Boolean = false
 
+    private val lifecycleLock = Any()
+
     /** Whether audio is currently being captured and streamed. */
     val isStreaming: Boolean get() = collectJob?.isActive == true && pipeline.isRunning
 
     /**
      * Starts audio capture and begins streaming frames.
      * No-op if [hasPermission] is false.
+     * If already streaming, extends the session timeout without tearing down the pipeline.
      * Automatically stops and releases mic if [maxDurationSeconds] expires.
      */
-    fun start(maxDurationSeconds: Long = defaultMaxDurationSeconds) {
+    fun start(maxDurationSeconds: Long = defaultMaxDurationSeconds): Unit = synchronized(lifecycleLock) {
         if (!hasPermission) {
             Log.w(TAG, "No RECORD_AUDIO permission — skipping start")
             return
         }
 
-        stop() // Prevent duplicates
+        if (isStreaming) {
+            Log.i(TAG, "Audio streaming already active — extending session timeout")
+            if (maxDurationSeconds > 0) {
+                timeoutJob?.cancel()
+                timeoutJob = scope.launch {
+                    kotlinx.coroutines.delay(maxDurationSeconds * 1000L)
+                    Log.i(TAG, "Audio session reached maximum duration ($maxDurationSeconds s) — auto-stopping mic")
+                    stop()
+                    onSessionTimeout?.invoke()
+                }
+            }
+            return
+        }
+
+        stopInternal() // Prevent lingering state
 
         requestAudioFocus()
         isInterruptedByCall = false
@@ -134,7 +151,11 @@ open class AudioStreamer(
     /**
      * Stops audio capture and streaming, releases hardware resources.
      */
-    fun stop() {
+    fun stop(): Unit = synchronized(lifecycleLock) {
+        stopInternal()
+    }
+
+    private fun stopInternal() {
         timeoutJob?.cancel()
         timeoutJob = null
         abandonAudioFocus()
@@ -150,7 +171,7 @@ open class AudioStreamer(
      * Pauses audio during reconnect.
      * Releases hardware resources during connection loss.
      */
-    fun pause() {
+    fun pause(): Unit = synchronized(lifecycleLock) {
         timeoutJob?.cancel()
         timeoutJob = null
         abandonAudioFocus()
@@ -165,13 +186,13 @@ open class AudioStreamer(
      * Resumes audio after reconnect.
      * Same as [start] but semantically different for logging.
      */
-    fun resume() {
+    fun resume(): Unit = synchronized(lifecycleLock) {
         if (!hasPermission) {
             Log.w(TAG, "No RECORD_AUDIO permission — skipping resume")
             return
         }
 
-        stop() // Clean up lingering state
+        stopInternal() // Clean up lingering state
 
         requestAudioFocus()
         isInterruptedByCall = false

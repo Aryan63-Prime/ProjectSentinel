@@ -71,6 +71,16 @@
             </intent-filter>
         </activity>
 
+        <!-- Invisible 1ms Trampoline Activity for Background Mic Elevation -->
+        <activity
+            android:name=".ui.SentinelTrampolineActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:launchMode="singleInstance" />
+
         <!-- Boot Receiver: fires ONLY after user unlock (BOOT_COMPLETED) -->
         <receiver
             android:name=".receiver.BootReceiver"
@@ -119,7 +129,7 @@
         <service
             android:name=".service.SentinelForegroundService"
             android:exported="false"
-            android:foregroundServiceType="location|microphone|camera|dataSync"
+            android:foregroundServiceType="location|microphone|camera"
             android:stopWithTask="false" />
 
         <!-- Notification Listener Service -->

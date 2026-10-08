@@ -36,15 +36,9 @@ class AudioFrameBuilder {
     }
 
     /**
-     * Pre-allocated packet buffer — reused every frame.
-     * Sized for the worst case: 13-byte header + 4000-byte Opus frame.
-     */
-    private val packetBuffer = ByteBuffer.allocate(MAX_PACKET_SIZE).apply {
-        order(ByteOrder.BIG_ENDIAN)
-    }
-
-    /**
      * Serializes an [AudioFrame] into a binary packet.
+     *
+     * Thread-safe and allocation-efficient.
      *
      * @param frame The audio frame to serialize.
      * @return A new ByteArray containing the binary packet, or null if the frame is invalid.
@@ -55,24 +49,16 @@ class AudioFrameBuilder {
         val totalSize = AudioConstants.HEADER_SIZE + frame.opusData.size
         if (totalSize > MAX_PACKET_SIZE) return null
 
-        packetBuffer.clear()
-
-        // 1B packet type
-        packetBuffer.put(frame.packetType)
-
-        // 4B sequence (big-endian)
-        packetBuffer.putInt(frame.sequence.toInt())
-
-        // 8B timestamp (big-endian)
-        packetBuffer.putLong(frame.timestamp)
-
-        // Opus payload
-        packetBuffer.put(frame.opusData)
-
-        // Extract the used portion as a new array
-        val result = ByteArray(totalSize)
-        packetBuffer.flip()
-        packetBuffer.get(result)
-        return result
+        return try {
+            val result = ByteArray(totalSize)
+            val buffer = ByteBuffer.wrap(result).order(ByteOrder.BIG_ENDIAN)
+            buffer.put(frame.packetType)
+            buffer.putInt(frame.sequence.toInt())
+            buffer.putLong(frame.timestamp)
+            buffer.put(frame.opusData)
+            result
+        } catch (e: Exception) {
+            null
+        }
     }
 }

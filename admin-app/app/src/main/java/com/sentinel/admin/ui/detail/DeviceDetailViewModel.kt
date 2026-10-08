@@ -246,9 +246,6 @@ class DeviceDetailViewModel @Inject constructor(
     fun onListenClick() {
         val target = audioTargetDeviceId
         audioRepository.listen(target)
-        if (target != "HOST-001" && target.startsWith("HOST-001")) {
-            audioRepository.listen("HOST-001")
-        }
         sendCommand("START_AUDIO_STREAM")
         audioMonitor.start(target)
     }
@@ -259,9 +256,6 @@ class DeviceDetailViewModel @Inject constructor(
         }
         val target = audioTargetDeviceId
         audioRepository.stopListening(target)
-        if (target != "HOST-001" && target.startsWith("HOST-001")) {
-            audioRepository.stopListening("HOST-001")
-        }
         sendCommand("STOP_AUDIO_STREAM")
         audioMonitor.stop()
     }
@@ -448,6 +442,9 @@ class DeviceDetailViewModel @Inject constructor(
                         val msg = errData?.optString("message", "Unknown error") ?: "Unknown error"
                         android.util.Log.e("Sentinel:AdminCmd", "Server error received: code=$code, msg=$msg")
                         _uiState.update { it.copy(commandStatusMessage = "Server Error ($code): $msg") }
+                        if (code == 404 || msg.contains("offline", ignoreCase = true) || msg.contains("not found", ignoreCase = true)) {
+                            audioMonitor.stop()
+                        }
                         return@collect
                     }
 

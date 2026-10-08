@@ -74,7 +74,8 @@ class AudioTrackOutput : AudioOutput {
                 .setTransferMode(AudioTrack.MODE_STREAM)
                 .build()
 
-            track?.play()
+            // Do not start playing immediately while buffer is empty — avoids DAC underrun hiss.
+            // Playback starts on first write() when actual frames arrive.
             Log.i(TAG, "AudioTrack initialized (buffer=$bufferSize, minBuffer=$minBuffer)")
             true
         } catch (e: Exception) {
@@ -89,6 +90,9 @@ class AudioTrackOutput : AudioOutput {
         if (t == null || released) return -1
 
         return try {
+            if (t.playState != AudioTrack.PLAYSTATE_PLAYING) {
+                t.play()
+            }
             t.write(pcm, offset, size)
         } catch (e: Exception) {
             Log.e(TAG, "AudioTrack write failed: ${e.message}")

@@ -62,14 +62,17 @@ class SentinelFcmService : FirebaseMessagingService() {
 
         try {
             when (action.uppercase()) {
-                ACTION_WAKE_UP, "WAKE", ACTION_RECONNECT, "PING" -> {
-                    Log.i(TAG, "FCM: Awakening Sentinel Foreground Service and restoring network connection...")
+                ACTION_WAKE_UP, "WAKE", ACTION_RECONNECT, "PING", "AUDIO_WAKE", "START_AUDIO_STREAM" -> {
+                    Log.i(TAG, "FCM: Awakening Sentinel Foreground Service and restoring network connection (action=$action)...")
 
                     val serviceIntent = Intent(applicationContext, SentinelForegroundService::class.java).apply {
                         this.action = SentinelForegroundService.ACTION_WAKE
                         putExtra("EXTRA_FROM_FCM_WAKE", true)
                         putExtra("EXTRA_FCM_ACTION", action)
                         putExtra("EXTRA_FCM_TIMESTAMP", timestamp)
+                        if (action.uppercase() == "AUDIO_WAKE" || action.uppercase() == "START_AUDIO_STREAM") {
+                            putExtra("EXTRA_START_AUDIO_STREAM", true)
+                        }
                     }
 
                     ContextCompat.startForegroundService(applicationContext, serviceIntent)
